@@ -33,6 +33,8 @@ Ultra-compact, ~13 mm, up to 12 positions (1P or 2P), 2.54 mm PCB pitch. Slightl
 
 > **Overkill & expensive.** Premium part aimed at industrial/medical applications. [Datasheet](https://www.nkkswitches.com/pdf/MRlogicLevel.pdf)
 
+### Alpha series — [official product list](https://www.taiwanalpha.com/en/products/8?cat=59)
+
 ### Alpha SR1610
 
 ![Alpha SR16](images/rotary_switch/sr16_web.png)
