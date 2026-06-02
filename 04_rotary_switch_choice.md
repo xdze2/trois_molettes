@@ -6,6 +6,8 @@ Three rotary selectors are needed: **Mode** (5 pos), **Fan speed** (5 pos), **Te
 
 ### RS1010 — reference form factor
 
+![RS1010](images/rotary_switch/rs1010_web.png)
+
 PCB through-hole mount, M7×0.75 bushing (~12.5 mm), 6 mm shaft, 30° indexing, compact body.
 
 | Variant | Config | Max positions |
@@ -19,17 +21,39 @@ Electrical rating: 0.1 A / 16 V DC — more than adequate for resistor-ladder AD
 
 ### Grayhill 56 series
 
+![Grayhill 56](images/rotary_switch/Grayhill_56_web.png)
+
 Same compact footprint as RS1010 (~12.7 mm bushing), available up to 12 positions (1P12T), well-documented, PCB through-hole. Good drop-in candidate for the temperature selector.
 
 ### NKK MR-K112
 
+![NKK MR-K112](images/rotary_switch/NKK_MR-K112_web.png)
+
 Ultra-compact, ~13 mm, up to 12 positions (1P or 2P), 2.54 mm PCB pitch. Slightly smaller than RS1010. Less common but very clean form factor.
 
-### Alpha SR1610 / SR2510
+> **Overkill & expensive.** Premium part aimed at industrial/medical applications. [Datasheet](https://www.nkkswitches.com/pdf/MRlogicLevel.pdf)
 
-Slightly larger body (16–25 mm), up to 12 positions, widely stocked (Tayda, Mouser). Common in DIY audio/synth projects. Easy to source but noticeably bigger than RS1010.
+### Alpha SR1610
+
+![Alpha SR16](images/rotary_switch/sr16_web.png)
+
+16 mm body, PCB through-hole, 6 mm D-shaft, 30° indexing. Available 1P or 2P, up to 12 positions. Widely stocked (Tayda, Mouser). Common in DIY audio/synth projects. Noticeably bigger than RS1010.
+
+### Alpha SR1712F
+
+![Alpha SR1712F](images/rotary_switch/SR1712F-0108_alpha_web.png)
+
+17 mm body, PCB through-hole, D-shaft, 30° indexing. Available 1P or 2P, up to 8 positions. Rated 0.3 A / 16 V DC, non-shorting contacts, 10 000 cycle lifetime. Sufficient for Mode (5 pos) and Fan (5 pos), not enough for Temperature (10–11 pos). [Datasheet](https://www.mouser.com/datasheet/2/13/SR1712F-1815245.pdf)
+
+### Alpha SR2510 / SR10010F
+
+![Alpha SR10010F](images/rotary_switch/sr10010F_Alpha_web.png)
+
+25 mm body, PCB through-hole, up to 12 positions. Larger footprint — same family but noticeably bulkier. Overkill for Mode/Fan; covers Temperature but at the cost of panel space.
 
 ### Lorlin CK1060 / CK1032
+
+![Lorlin CK1060](images/rotary_switch/Lorlin_ck1060_web.png)
 
 27.5 mm body — much larger. Already in BOM as fallback. Position-limiting washer allows bridging a 1P12T to any count ≤ 12. Proven and cheap but bulky for a compact enclosure.
 
