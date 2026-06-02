@@ -109,9 +109,9 @@ Methods: `setSwingVertical(bool)` / `setSwingHorizontal(bool)`
 
 ---
 
-### 3.7 Timers (out of scope for v1)
+### 3.7 Timers (out of scope)
 
-The protocol supports on-timer, off-timer, weekly timer, and current time/day. Methods exist but are not used in this project.
+The protocol supports on-timer, off-timer, weekly timer, and current time/day. Methods exist but are not used in this project. Scheduling is delegated to the BRP069B41 WiFi adapter and home automation — see specs for rationale.
 
 ---
 
@@ -148,18 +148,17 @@ void setup() {
 
 ## 5. Tangible Interface Mapping
 
-Design principle: **stateless physical controls**. Every knob and switch directly encodes the current AC state — there is no hidden software state. What you see (knob position + LEDs) is what the AC is set to.
+Design principle: **stateless physical controls**. Every knob and switch directly encodes the current AC state — there is no hidden software state. What you see (knob position) is what the AC is set to.
+
+Knobs are ordered by frequency of use: Fan (daily) → Mode (seasonal) → Temperature (set-and-forget).
 
 ### 5.1 Control layout
 
 ```
 ┌─────────────────────────────────────┐
 │                                     │
-│   [MODE]      [FAN]     [TEMP]      │
-│    knob        knob      knob       │
-│                                     │
-│   ● ● ● ● ●  ● ● ● ● ●  ● ● ● ● ● ● ● ● ● ● ●
-│   mode LEDs  fan LEDs       temp LEDs (16–26°C)
+│   [FAN]      [MODE]     [TEMP]      │
+│    knob       knob       knob       │
 │                                     │
 │   [PWR]  [ECO]  [SWING]  [RESEND]  │
 │                                     │
@@ -167,34 +166,37 @@ Design principle: **stateless physical controls**. Every knob and switch directl
 └─────────────────────────────────────┘
 ```
 
-### 5.2 Mode selector (rotary, 5 positions)
+### 5.2 Fan speed / Power selector (rotary, 6 positions)
+
+This is the primary daily control. Position 0 is OFF.
 
 | Position | Label | AC state sent |
 |---|---|---|
 | 0 | OFF | `setPower(false)` |
-| 1 | FAN | `setPower(true)`, `setMode(kDaikinFan)` |
-| 2 | COOL | `setPower(true)`, `setMode(kDaikinCool)` |
-| 3 | HEAT | `setPower(true)`, `setMode(kDaikinHeat)` |
-| 4 | DRY | `setPower(true)`, `setMode(kDaikinDry)` |
+| 1 | 1 | `setPower(true)`, `setFan(kDaikinFanMin)` |
+| 2 | 2 | `setPower(true)`, `setFan(2)` |
+| 3 | 3 | `setPower(true)`, `setFan(kDaikinFanMed)` |
+| 4 | 4 | `setPower(true)`, `setFan(4)` |
+| 5 | MAX | `setPower(true)`, `setFan(kDaikinFanMax)` |
 
-LED feedback: one LED per position, lit in mode color (blue = cool, red = heat, green = fan, yellow = dry, off = off).
+LED feedback: one LED per position, all same colour. Position 0 (OFF) LED off.
 
-Note: the 8404-3C on hand (4 positions) covers positions 0–3 (no Dry). A 5-position switch is needed if Dry is required.
+Note: `kDaikinFanAuto` is not exposed — it adds a position and is rarely used in practice.
 
-### 5.3 Fan speed selector (rotary, 5 positions)
+### 5.3 Mode selector (rotary, 4–5 positions)
 
-| Position | Label | Value sent |
+Set seasonally. Does not include OFF (handled by the fan knob).
+
+| Position | Label | AC state sent |
 |---|---|---|
-| 0 | AUTO | `kDaikinFanAuto` |
-| 1 | 1 | `1` |
-| 2 | 2 | `2` |
-| 3 | 3 | `3` |
-| 4 | 4 | `4` |
-| 5 | MAX | `5` |
+| 0 | FAN | `setMode(kDaikinFan)` |
+| 1 | COOL | `setMode(kDaikinCool)` |
+| 2 | HEAT | `setMode(kDaikinHeat)` |
+| 3 | DRY | `setMode(kDaikinDry)` |
 
-6 positions total (Auto + 1–5). Alternatively: drop Auto and use positions 1–5 only (simpler, one fewer position).
+LED feedback: one LED per position, colour-coded (blue = cool, red = heat, green = fan, yellow = dry).
 
-LED feedback: one LED per position, all same colour.
+Note: the 8404-3C on hand is 4 positions — matches exactly (FAN / COOL / HEAT / DRY). If Dry is dropped, 3 positions suffice.
 
 ### 5.4 Temperature selector (rotary, 11 positions)
 
@@ -221,6 +223,8 @@ LED feedback: 11 LEDs in an arc, one lit per temperature step.
 | RESEND | Retransmit full state | `send()` | Brief flash on TX LED |
 
 Powerful and Econo are mutually exclusive — activating one clears the other.
+
+Note: Quiet is a fan speed value (`kDaikinFanQuiet`), not a boolean flag. It is not exposed as a button — it would conflict with the fan knob's stateless readout.
 
 ### 5.6 Send trigger
 

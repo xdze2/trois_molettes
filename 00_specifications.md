@@ -1,121 +1,106 @@
-# Daikin Custom Remote — Project Specifications
+# Daikin Custom Remote — Specifications
 
-## 1. Overview
+## 1. Motivation
 
-Build a physical, tangible IR remote control for a Daikin split AC unit. The interface must be "no brain needed": all controls are hardware (rotary switches, buttons), with LED feedback for state. No screen. No complex menus.
+Two goals:
+1. Build something cool and learn by doing it.
+2. Produce a tangible, simple, robust, usable, low-complexity, screenless, app-less, open-source, and repairable AC control device.
 
-## 2. Target Hardware (AC Unit)
+The AC unit's original remote is a black box — fragile, app-dependent, and not repairable. This project replaces it with something physical, honest, and long-lived.
+
+## 2. Target AC Unit
 
 | Item | Value |
 |---|---|
 | Indoor unit | FTXM20N2V1B (2020/06) |
-| WiFi adapter | BRP069B41 |
-| Firmware | 1.14.68 |
-| Protocol regime | Legacy REST (`/aircon/get_control_info`) |
 | Original remote | ARC466A33 |
-| IR variant | To confirm against IRremoteESP8266 supported list for ARC466A33 |
+| Interface used | IR only |
 
-## 3. Controls & Functions
+The WiFi adapter and REST API are explicitly out of scope. This device communicates via IR only.
 
-### 3.1 Primary controls (always accessible)
+## 3. Core Design Principle — Stateless Interface
 
-| Function | Range | Control type | Notes |
-|---|---|---|---|
-| Power + Mode | OFF / Fan / Cool / Heat / Dry | Rotary selector, 5 positions | One knob covers both on/off and mode |
-| Fan speed | 1 / 2 / 3 / 4 / 5 | Rotary selector, 5 positions | |
-| Target temperature | 16–26 °C | Rotary selector or encoder | 1 °C steps preferred (11 positions); 2 °C acceptable fallback |
+**The physical position of every knob and button reflects the full state of the system.**
 
-### 3.2 Secondary modes (push buttons)
+There is no hidden internal state. No screen. No memory to synchronize. If you look at the device, you know what it is doing (or what it will do on next send). This is the central design constraint that drives all interface decisions.
 
-| Function | Notes |
-|---|---|
-| Powerful | Momentary or latching push button |
-| Night / Quiet | Momentary or latching push button |
-| Econo | Momentary or latching push button |
+Implications:
+- All controls are hardware (rotary switches, physical buttons) — not virtual or touch-based.
+- The IR protocol does not return status from the unit (current temperature, etc.), so no richer feedback is needed or possible.
+- A "resend" action retransmits whatever the knobs currently show — no stored state to diverge from physical position.
 
-Timer / daily scheduling is **out of scope** for v1 (deemed overkill for the "no brain needed" goal).
+## 4. Controls & Functions
 
-### 3.3 Resend
+Controls are ordered by frequency of use.
 
-Pressing the temperature knob (if encoder with push) or a dedicated button retransmits the full current state (mode + fan + temp) via IR. Accounts for missed commands.
+### 4.1 Primary controls
 
-## 4. Feedback
+| # | Function | Range | Control type | Frequency of change |
+|---|---|---|---|---|
+| 1 | Power + Fan speed | OFF / 1 / 2 / 3 / 4 / 5 | Rotary selector, 6 positions | Daily |
+| 2 | Mode | Fan / Cool / Heat / Dry | Rotary selector, 4–5 positions | Seasonal (every few months) |
+| 3 | Target temperature | 16–26 °C | Rotary selector, 11 positions (1 °C steps) | Infrequent (per room setting) |
 
-All state is reflected via LEDs — there is no screen.
+Fan speed position 0 is OFF. This makes the fan knob the primary on/off control — the one touched every day.
 
-| Feedback | Mechanism |
-|---|---|
-| Active mode | LED per mode position (or WS2812B ring) |
-| Fan speed | LED per speed position |
-| Temperature | LED bar / arc (one LED per step) |
-| IR transmitted | Brief flash on a dedicated TX LED |
-| Secondary mode active | LED integrated in or next to each button |
+Mode is set seasonally and does not include OFF (power is handled by the fan knob).
 
-LED count estimate: ~16–20. Preferred approach: WS2812B addressable chain (single GPIO, color-coded per function: blue = cool, red = heat, etc.).
+### 4.2 Secondary modes (push buttons)
 
-## 5. Microcontroller
+| Function |
+|---|
+| Powerful |
+| Econo |
+| Swing |
 
-**Wi-Fi and Bluetooth: not required.** The device is fully standalone.
+Support for these depends on what the FTXM20N2V1B actually accepts via IR — to be confirmed.
 
-**Preferred: Raspberry Pi Pico** (RP2040, no Wi-Fi variant)
+### 4.3 Resend
 
-Rationale: no ADC conflicts (all pins usable simultaneously), large flash (2 MB+), low power consumption (better for battery), simpler firmware (no Wi-Fi stack), sufficient memory for Daikin IR library.
+A dedicated action (button press or knob push) retransmits the full current state via IR. Handles missed commands without changing any setting.
 
-Alternative: ESP32 DevKit — viable but overkill without Wi-Fi; higher quiescent current hurts battery life.
+### 4.4 Timer / scheduling — out of scope
 
-Arduino Uno/Nano: ruled out (32 KB flash insufficient for full Daikin IR library).
+Daily scheduling (wake/sleep timer) is explicitly out of scope. Spring-wound mechanical timers are not available in a form factor compatible with the <30 mm depth constraint, and the IR protocol timer interface requires a clock and display. Scheduling is better handled externally via the BRP069B41 WiFi adapter and home automation.
 
-## 6. Input Architecture
+## 5. Feedback
 
-### Rotary selectors
+The only feedback mechanism is a single LED (or minimal LEDs):
 
-Use mechanical rotary selector switches (e.g. Lorlin CK1032 or equivalent 1P12T bridged to fewer positions, or Alpha SR16).
+1. **Battery not dead** — confirms the device is powered.
+2. **IR transmission** — brief flash when a signal is sent.
 
-- Mode selector: 5-position (OFF, Fan, Cool, Heat, Dry)
-- Fan selector: 5-position
-- Temperature: 11-position rotary selector (16–26 °C, 1 °C steps) — Lorlin 1P12T bridged to 11 positions; **or** EC11 encoder with firm detents if 11-position selector is impractical in the enclosure
+No LED matrix, no mode indicators, no temperature bar. The knob positions are the feedback. This keeps the design simple and power consumption low.
 
-Wiring: resistor ladder on a single analog pin (no ADC conflict concerns on Pico).
+## 6. Power
 
-### Push buttons
+- Battery powered. Must work fully untethered.
+- **Target battery life: more than 6 months** of normal use on a single charge (goal: years).
+- USB charging port on the enclosure.
+- Low-battery indicator is desirable (nice to have).
 
-3–4 momentary or latching buttons for secondary modes. Each wired to a digital GPIO with internal pull-up.
+Battery life is a hard constraint that drives microcontroller selection, LED count, and sleep strategy.
 
-### Available rotary switch (on hand)
+## 7. Physical Form
 
-Commutateur 8404-3C (code 07206) — 3 circuits, 4 positions (3P4T). Suitable for Mode or Fan selector (only 4 positions, not 5; confirm if Dry mode will be dropped or a different switch used).
+- **Dimensions: ~80 × 100 × 25 mm** (thickness is the hardest to reduce; <30 mm required).
+- **Primary use: wall-mounted.** Must be usable handheld, but the design is optimized for wall/surface mount.
+- Mount method: magnetic or screw mount on the back face.
+- **IR LED must have an unobstructed forward-facing window.**
+- **All rotary controls and buttons on the top face.**
+- 3D-printed enclosure. Design must be solid, well-made, and visually intentional — not a prototype box.
 
-## 7. IR Transmission
+## 8. Non-functional Requirements
 
-- Library: **IRremoteESP8266** (ESP32 compatible)
-- Class: `IRDaikinAC` (or appropriate variant once remote model is identified)
-- IR LED: 940 nm LED + NPN transistor driver (2N2222A or S8050), ~100 mA peak
-- Recommended GPIO: 4 (standard for IRremoteESP8266 examples)
-- IR receiver (TSOP38238): used during development to capture and verify original remote signals; not needed in final device
+- **Open source** — hardware design, firmware, and enclosure files published.
+- **Repairable** — standard components, accessible internals, no glued-shut assembly.
+- **No app, no network, no cloud dependency.**
+- **No screen.**
+- Low complexity — the firmware should be small and auditable.
 
-## 8. Power
+## 9. Open Questions
 
-Li-Po battery. The device must work untethered (handheld use case).
-
-- Pico quiescent: ~1–2 mA sleep, ~25 mA active — significantly better than ESP32
-- Battery sizing TBD (target: weeks of normal use on a single charge)
-- Charging circuit: TP4056 module or similar, exposed via USB-C port on enclosure
-- Low-battery indicator LED desirable (nice to have)
-
-## 9. Enclosure
-
-3D-printed. Target footprint: **~80 × 100 × 25 mm** (credit-card footprint, thicker).
-
-Dual-use: designed to work both handheld and wall-mounted (magnetic or screw mount on the back).
-
-Constraint: IR LED must have unobstructed forward-facing window. All rotary controls and buttons on the top face.
-
-## 10. Open Questions
-
-The following still need answers:
-
-1. **Mode count: 4 or 5?** — the 8404-3C on hand is 4-position. Decide: keep Dry mode (needs a 5-position switch) or drop it (use the 8404-3C as-is for OFF/Fan/Cool/Heat)?
-2. **Secondary modes: which ones?** — check the ARC466A33 / FTXM20N2V1B for Powerful, Night/Quiet, Econo support. Determines button count.
-3. **IR variant for ARC466A33** — cross-check against IRremoteESP8266 supported protocols list. Likely `DAIKIN` or `DAIKIN2`; needs verification.
-4. **Temperature control: 11-position Lorlin or EC11 encoder?** — depends on whether an 11-position selector fits the 80×100 mm enclosure layout alongside the other two knobs.
-5. **Screen as optional add-on?** — "main functions work without it" implies a screen port could be added later. Confirm: reserve I2C pins on the PCB for a future OLED, or ignore entirely?
+1. **Mode count: 4 or 5?** — Does the design include Dry mode? Determines switch position count.
+2. **Secondary modes support** — Confirm which of Powerful / Night / Econo the FTXM20N2V1B accepts via IR.
+3. **IR variant for ARC466A33** — Identify the correct IRremoteESP8266 protocol class.
+4. **Temperature control resolution** — Confirm 11-position selector fits the enclosure layout alongside the other two knobs.
