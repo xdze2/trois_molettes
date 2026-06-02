@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 140" width="100mm" height="140mm" font-family="sans-serif">
+
+  <!-- Remote body -->
+  <rect x="5" y="5" width="90" height="130" rx="12" ry="12"
+        fill="#2a2a2a" stroke="#111" stroke-width="1.5"/>
+  <!-- Inner bezel -->
+  <rect x="8" y="8" width="84" height="124" rx="10" ry="10"
+        fill="#1e1e1e" stroke="#3a3a3a" stroke-width="0.5"/>
+
+  <!-- ── TOP SECTION: LEDs ── -->
+  <!-- IR LED (clear, emitter) -->
+  <circle cx="42" cy="18" r="4" fill="#e8e8d0" stroke="#aaa" stroke-width="0.8"/>
+  <text x="42" y="27" text-anchor="middle" font-size="4" fill="#888">IR</text>
+
+  <!-- Status LED (visible, blue) -->
+  <circle cx="60" cy="18" r="3" fill="#1a6aff" stroke="#0040cc" stroke-width="0.8" opacity="0.85"/>
+  <!-- LED glow -->
+  <circle cx="60" cy="18" r="5" fill="none" stroke="#1a6aff" stroke-width="0.5" opacity="0.3"/>
+  <text x="60" y="27" text-anchor="middle" font-size="4" fill="#888">SIG</text>
+
+  <!-- ── KNOB 1: MODE ── -->
+  <text x="50" y="40" text-anchor="middle" font-size="5" fill="#ccc" font-weight="bold">MODE</text>
+  <!-- Knob track -->
+  <circle cx="50" cy="55" r="14" fill="#333" stroke="#555" stroke-width="1"/>
+  <circle cx="50" cy="55" r="12" fill="#404040" stroke="#666" stroke-width="0.5"/>
+  <!-- Knob grip ridges -->
+  <circle cx="50" cy="55" r="10" fill="#4a4a4a" stroke="#777" stroke-width="0.5"/>
+  <!-- Indicator dot at top -->
+  <circle cx="50" cy="45" r="1.5" fill="#00cfff"/>
+  <!-- Tick marks + labels for modes -->
+  <!-- fan ~210° -->
+  <line x1="39.1" y1="62" x2="37" y2="64.5" stroke="#888" stroke-width="0.7"/>
+  <text x="33" y="67" text-anchor="middle" font-size="3.5" fill="#aaa">Fan</text>
+  <!-- cool ~240° -->
+  <line x1="43" y1="66.1" x2="41.5" y2="69" stroke="#888" stroke-width="0.7"/>
+  <text x="38.5" y="72" text-anchor="middle" font-size="3.5" fill="#aaa">Cool</text>
+  <!-- heat ~270° -->
+  <line x1="50" y1="67.5" x2="50" y2="70.5" stroke="#888" stroke-width="0.7"/>
+  <text x="50" y="74.5" text-anchor="middle" font-size="3.5" fill="#aaa">Heat</text>
+  <!-- dry ~300° -->
+  <line x1="57" y1="66.1" x2="58.5" y2="69" stroke="#888" stroke-width="0.7"/>
+  <text x="61.5" y="72" text-anchor="middle" font-size="3.5" fill="#aaa">Dry</text>
+  <!-- auto ~330° -->
+  <line x1="60.9" y1="62" x2="63" y2="64.5" stroke="#888" stroke-width="0.7"/>
+  <text x="67" y="67" text-anchor="middle" font-size="3.5" fill="#aaa">Auto</text>
+
+  <!-- ── KNOB 2: TEMPERATURE ── -->
+  <text x="50" y="86" text-anchor="middle" font-size="5" fill="#ccc" font-weight="bold">TEMP °C</text>
+  <circle cx="50" cy="101" r="14" fill="#333" stroke="#555" stroke-width="1"/>
+  <circle cx="50" cy="101" r="12" fill="#404040" stroke="#666" stroke-width="0.5"/>
+  <circle cx="50" cy="101" r="10" fill="#4a4a4a" stroke="#777" stroke-width="0.5"/>
+  <!-- Indicator dot -->
+  <circle cx="50" cy="91" r="1.5" fill="#ff7700"/>
+  <!-- Temp range arc ticks: 16°C left (~210°) to 26°C right (~330°) -->
+  <!-- 16 -->
+  <line x1="39.1" y1="108" x2="37" y2="110.5" stroke="#888" stroke-width="0.7"/>
+  <text x="33" y="113" text-anchor="middle" font-size="3.5" fill="#aaa">16</text>
+  <!-- 18 -->
+  <line x1="43.2" y1="112" x2="41.5" y2="115" stroke="#888" stroke-width="0.7"/>
+  <!-- 20 -->
+  <line x1="50" y1="113.5" x2="50" y2="116.5" stroke="#888" stroke-width="0.7"/>
+  <text x="50" y="120" text-anchor="middle" font-size="3.5" fill="#aaa">20</text>
+  <!-- 22 -->
+  <line x1="56.8" y1="112" x2="58.5" y2="115" stroke="#888" stroke-width="0.7"/>
+  <!-- 24 -->
+  <line x1="60.9" y1="108" x2="63" y2="110.5" stroke="#888" stroke-width="0.7"/>
+  <text x="67" y="113" text-anchor="middle" font-size="3.5" fill="#aaa">26</text>
+
+  <!-- ── KNOB 3: FAN SPEED ── -->
+  <!-- placed bottom-left -->
+  <text x="28" y="86" text-anchor="middle" font-size="4.2" fill="#ccc" font-weight="bold">FAN</text>
+  <circle cx="28" cy="101" r="11" fill="#333" stroke="#555" stroke-width="1"/>
+  <circle cx="28" cy="101" r="9" fill="#404040" stroke="#666" stroke-width="0.5"/>
+  <circle cx="28" cy="101" r="7" fill="#4a4a4a" stroke="#777" stroke-width="0.5"/>
+  <circle cx="28" cy="94" r="1.2" fill="#00e07a"/>
+  <!-- Fan speed ticks: off, 1, 2, 3, 4, night over ~150° arc -->
+  <!-- off ~210° -->
+  <line x1="22.5" y1="106.5" x2="20.8" y2="108.5" stroke="#888" stroke-width="0.6"/>
+  <text x="18" y="111" text-anchor="middle" font-size="3" fill="#aaa">Off</text>
+  <!-- 1 ~228° -->
+  <line x1="24" y1="109" x2="22.8" y2="111.3" stroke="#888" stroke-width="0.6"/>
+  <text x="21.5" y="114" text-anchor="middle" font-size="3" fill="#aaa">1</text>
+  <!-- 2 ~246° -->
+  <line x1="26" y1="110.5" x2="25.2" y2="113" stroke="#888" stroke-width="0.6"/>
+  <text x="24.5" y="116" text-anchor="middle" font-size="3" fill="#aaa">2</text>
+  <!-- 3 ~264° -->
+  <line x1="28" y1="111" x2="28" y2="113.5" stroke="#888" stroke-width="0.6"/>
+  <text x="28" y="116.5" text-anchor="middle" font-size="3" fill="#aaa">3</text>
+  <!-- 4 ~282° -->
+  <line x1="30" y1="110.5" x2="30.8" y2="113" stroke="#888" stroke-width="0.6"/>
+  <text x="31.5" y="116" text-anchor="middle" font-size="3" fill="#aaa">4</text>
+  <!-- night ~300° -->
+  <line x1="32.2" y1="109" x2="33.4" y2="111.3" stroke="#888" stroke-width="0.6"/>
+  <text x="35.5" y="114" text-anchor="middle" font-size="3" fill="#aaa">Ngt</text>
+
+  <!-- ── SWING TOGGLE BUTTON (right of fan knob) ── -->
+  <text x="74" y="86" text-anchor="middle" font-size="4.2" fill="#ccc" font-weight="bold">SWING</text>
+  <!-- Toggle pill -->
+  <rect x="64" y="92" width="20" height="10" rx="5" ry="5" fill="#333" stroke="#666" stroke-width="0.8"/>
+  <!-- Toggle thumb (off position = left) -->
+  <circle cx="69" cy="97" r="4" fill="#555" stroke="#888" stroke-width="0.6"/>
+  <!-- ON label -->
+  <text x="80" y="99.5" text-anchor="middle" font-size="3.2" fill="#666">ON</text>
+  <text x="66.5" y="99.5" text-anchor="middle" font-size="3.2" fill="#aaa">OFF</text>
+
+  <!-- ── SEND PUSH BUTTON ── -->
+  <text x="74" y="110" text-anchor="middle" font-size="4.2" fill="#ccc" font-weight="bold">SEND</text>
+  <!-- Button outer ring -->
+  <circle cx="74" cy="121" r="8" fill="#1a3a5c" stroke="#2255aa" stroke-width="1"/>
+  <!-- Button face -->
+  <circle cx="74" cy="121" r="6" fill="#1e4d8c" stroke="#3a7ad4" stroke-width="0.8"/>
+  <!-- Button highlight -->
+  <ellipse cx="72" cy="118.5" rx="2.5" ry="1.5" fill="white" opacity="0.15"/>
+  <!-- Arrow icon -->
+  <text x="74" y="123.5" text-anchor="middle" font-size="7" fill="#7ab8ff">&#x25B6;</text>
+
+  <!-- Screw corners (decorative) -->
+  <circle cx="13" cy="13" r="2" fill="#2a2a2a" stroke="#555" stroke-width="0.5"/>
+  <circle cx="87" cy="13" r="2" fill="#2a2a2a" stroke="#555" stroke-width="0.5"/>
+  <circle cx="13" cy="127" r="2" fill="#2a2a2a" stroke="#555" stroke-width="0.5"/>
+  <circle cx="87" cy="127" r="2" fill="#2a2a2a" stroke="#555" stroke-width="0.5"/>
+
+</svg>
