@@ -97,6 +97,7 @@ Battery life is a hard constraint that drives microcontroller selection, LED cou
 - **No app, no network, no cloud dependency.**
 - **No screen.**
 - Low complexity — the firmware should be small and auditable.
+- **BOM cost: < €35 total** (excluding enclosure and tools). This is a hard constraint on component selection.
 
 ## 9. Open Questions
 

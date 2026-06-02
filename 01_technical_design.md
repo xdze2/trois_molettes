@@ -52,17 +52,27 @@ See [03_microcontroller_choice.md](03_microcontroller_choice.md) for full compar
 
 ## 3. Input — Rotary Switches
 
-Three selectors wired as resistor ladders on ADC pins (one pin per selector). Ordered by frequency of use.
+Three selectors, each wired with **two poles**: one for ADC readout (resistor ladder), one for wake-from-sleep detection (GPIO edge on wiper break). All switches must be 2P variants.
 
 | Selector | Positions | Preferred part | Body | Fallback |
 |---|---|---|---|---|
-| Fan / Power | 6 (OFF + 1–5) | RS1010 1P6T | compact | — |
-| Mode | 4 (Fan/Cool/Heat/Dry) | 8404-3C (on hand) | unknown | RS1010 1P6T bridged to 4 |
-| Temperature | 11 (16–26 °C) | Grayhill 56SP12T bridged to 11 | compact | Lorlin CK1032 bridged to 11 (27.5 mm, bulkier) |
+| Fan / Power | 6 (OFF + 1–5) | Alpha SR1712F 2P8T (bridged to 6) | 17 mm | — |
+| Mode | 4 (Fan/Cool/Heat/Dry) | 8404-3C on hand (3P4T, spare poles unused) | unknown | RS1010 2P4T |
+| Temperature | 11 (16–26 °C) | Alpha SR1610 2P12T (bridged to 11) | 16 mm | Lorlin CK1032 2P bridged to 11 (27.5 mm, bulkier) |
 
-Resistor ladder: 10 kΩ per step. 3.3 V reference, 12-bit ADC → ~300 mV spacing per step for 11-position ladder. Verify margins on bench before committing to PCB.
+**Resistor ladder (pole 1):** 10 kΩ per step, powered from regulated 3.3 V rail. ~300 mV spacing per step for 11-position ladder — comfortable margin above ADC noise floor. Do not power from VSYS (battery voltage varies and would shift all readings).
 
-**8404-3C (on hand):** 3P4T, 4 positions — matches the 4-position Mode selector exactly (Fan / Cool / Heat / Dry). The 3 circuits are unused — only one pole needed for resistor ladder.
+**Wake detection (pole 2):** all contacts of the second pole shorted to 3.3 V, wiper to GPIO with pull-down. Knob movement breaks contact → falling edge → MCU wakes from sleep.
+
+Pin budget: 3 ADC pins + 3 digital GPIOs for rotary switches. Well within RP2040's 26 GPIOs.
+
+**Sleep is non-negotiable.** Without sleep the MCU draws ~25 mA continuously → ~80 hours on a 2000 mAh cell. The 6-month target requires sleep current (~1–2 mA on RP2040). "Always-on" is not a viable alternative.
+
+**Fallback if 2P switches are unavailable:** RC differentiator (cap + resistor) on the ADC wiper produces a spike on position change, detected via a comparator IC. Spike amplitude (~300 mV) is below GPIO logic threshold so a bare GPIO cannot be used — a comparator with adjustable threshold is required. More complex and costly than the 2P switch approach. See [04_rotary_switch_choice.md](04_rotary_switch_choice.md) for details.
+
+**Grayhill 56SP12 ruled out** — ~€30 per unit, exceeds total BOM budget of €35.
+
+**8404-3C (on hand):** 3P4T — one pole for ADC ladder, one for wake detection, one spare.
 
 **Temperature range with 10-position switch:** 16–25 °C (dropping 26 °C) is acceptable if an 11-position part doesn't fit.
 
@@ -122,6 +132,7 @@ The firmware sends a new IR frame on every control change (knob moved, button pr
 
 1. **IRremoteESP8266 on Pico** — must validate before committing to RP2040.
 2. **Secondary modes supported by FTXM20N2V1B** — confirm Powerful / Econo / Swing via IR test.
-3. **Temperature selector: 11-position part** — confirm enclosure fit with three knobs side by side.
+3. **Temperature selector: 11-position 2P part** — confirm enclosure fit with three knobs side by side; source Alpha SR1610 2P12T.
 4. **LED scope** — single TX LED or full WS2812B chain?
-5. **ADC ladder margins** — verify 11-position ladder on Pico 12-bit ADC by simulation or bench test.
+5. **ADC ladder margins** — verify 11-position ladder on Pico 12-bit ADC on bench.
+6. **BOM cost** — hard limit €35 total. Source check on Alpha SR1610 2P and SR1712F 2P (Tayda / Mouser / LCSC).

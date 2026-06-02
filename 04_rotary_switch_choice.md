@@ -69,26 +69,68 @@ Ultra-compact, ~13 mm, up to 12 positions (1P or 2P), 2.54 mm PCB pitch. Slightl
 
 All selectors wired as a resistor ladder on a single ADC pin. Equal resistors in series between each position output; common pin to ADC; one end to 3.3 V, other end to GND.
 
-- Mode (5 pos) → 1 ADC pin
-- Fan (5 pos) → 1 ADC pin
-- Temperature (10–11 pos) → 1 ADC pin
+- Mode (4 pos) → 1 ADC pin
+- Fan (6 pos) → 1 ADC pin
+- Temperature (11 pos) → 1 ADC pin
 
 Total: **3 ADC pins**. On RP2040 (Pico), ADC0–ADC2 are all usable without restriction.
 
-Ladder resistor value: 10 kΩ per step is a safe starting point. Spacing between voltage levels grows smaller with more positions — verify margins for the 11-position ladder with the MCU's 12-bit ADC.
+Ladder resistor value: 10 kΩ per step is a safe starting point. Spacing between voltage levels is ~300 mV per step for the 11-position ladder (3.3 V ref, 12-bit ADC → ~3 mV/LSB). Margin is comfortable — noise is typically a few mV.
+
+**Important:** power the ladder from the regulated 3.3 V rail, not VSYS (raw Li-Po). A varying supply voltage would shift all ADC readings as the battery drains.
+
+## Wake-from-sleep detection
+
+The MCU sleeps between transmissions and must wake on any knob or button change. Buttons naturally generate a GPIO edge. Rotary switches on a resistor ladder do not — a position change produces a DC voltage shift, not an edge.
+
+**Sleep is mandatory.** Without it, the MCU draws ~25 mA continuously. At that rate a 2000 mAh cell lasts ~80 hours — weeks, not the 6-month target. Sleep current on RP2040 is ~1–2 mA, putting the budget back in range.
+
+Three approaches to generate a wake edge from a rotary switch:
+
+### Option A — 2-pole switch (preferred)
+
+One pole drives the ADC ladder. The second pole has all contacts shorted to 3.3 V, wiper to a GPIO with pull-down. Any knob movement breaks contact → falling edge → MCU wakes.
+
+- Clean, reliable, no extra components.
+- Requires **2P variants** for all rotary switches.
+- Total: 3 ADC pins + 3 wake GPIOs. Well within RP2040's 26 GPIOs.
+
+### Option B — RC differentiator + comparator (fallback)
+
+A high-pass RC filter (cap in series, resistor to GND) on the ADC wiper line differentiates the DC step into a voltage spike on transition:
+
+```
+wiper ──┤C├──┬── to comparator
+             R
+             │
+            GND
+```
+
+Spike amplitude ≈ voltage step size (~300 mV for 11-position ladder) — **below the RP2040 GPIO logic threshold (~1.0–1.6 V)**. A comparator with adjustable threshold is required to detect it reliably.
+
+- Works on 1P switches — no 2P requirement.
+- Adds a comparator IC (e.g. LM393 dual, one per two switches) plus RC passives.
+- Detects transitions only, not settled position — acceptable for wake purposes.
+- Mechanical bounce during slow rotation may produce multiple spikes — also acceptable.
+- More complex and likely more expensive than Option A.
+
+**Use only if 2P switches are unavailable or exceed BOM budget.**
 
 ---
 
 ## Decision matrix
 
-| Selector | Positions needed | Candidate | Body size | Decision |
-|---|---|---|---|---|
-| Mode | 5 | RS1010 1P6T (bridged to 5) | compact | **preferred** |
-| Fan speed | 5 | RS1010 1P6T (bridged to 5) | compact | **preferred** |
-| Temperature | 10–11 | Grayhill 56SP12 (bridged to 10–11) | compact | **preferred** |
-| Temperature | 10–11 | NKK MR-K112 | ultra-compact | alternative |
-| Temperature | 10–11 | Lorlin CK1032 bridged to 11 | 27.5 mm | fallback |
-| Mode | 4 | 8404-3C (on hand) | unknown | only if Dry dropped |
+All switches must be **2-pole (2P)** — one pole for ADC ladder, one pole for wake GPIO. See "Wake-from-sleep detection" above.
+
+| Selector | Positions needed | Candidate | Body size | Poles | Decision |
+|---|---|---|---|---|---|
+| Mode | 4 | 8404-3C (on hand) | unknown | 3P4T | **preferred** (spare poles unused) |
+| Mode | 4 | RS1010 2P4T | compact | 2P | alternative |
+| Fan speed | 6 | Alpha SR1712F 2P8T (bridged to 6) | 17 mm | 2P | **preferred** |
+| Temperature | 11 | Alpha SR1610 2P12T (bridged to 11) | 16 mm | 2P | **preferred** |
+| Temperature | 11 | Lorlin CK1032 2P bridged to 11 | 27.5 mm | 2P | fallback (bulkier) |
+| Temperature | 11 | Grayhill 56SP12 | compact | 1P | **ruled out — ~€30, exceeds BOM budget** |
+| Temperature | 11 | NKK MR-K112 | ultra-compact | 2P | ruled out — expensive/overkill |
 
 ### Temperature range with 10 positions
 
@@ -107,7 +149,8 @@ With a 12-position switch bridged to 11: full 16–26 °C coverage is possible.
 
 ## Open questions
 
-- [ ] Confirm enclosure footprint allows three RS1010-size bushings plus a Grayhill 56 (same size) — should fit in 80×100 mm.
-- [ ] Verify ADC voltage spacing for 11-position ladder on RP2040 (3.3 V ref, 12-bit → ~3 mV per LSB, ~300 mV per step with equal 10 kΩ resistors — needs simulation or bench test).
-- [ ] Source check: RS1010 availability on TME / Mouser / LCSC for Mode and Fan selectors.
-- [ ] Confirm shaft length and knob compatibility (6 mm D-shaft vs round shaft).
+- [ ] Confirm enclosure footprint allows three knobs (16–17 mm body) side by side in 80×100 mm panel.
+- [ ] Verify ADC voltage spacing for 11-position ladder on bench (3.3 V ref, 12-bit → ~3 mV per LSB, ~300 mV per step with equal 10 kΩ resistors).
+- [ ] Source and price check: Alpha SR1610 2P12T and SR1712F 2P on Tayda / Mouser / LCSC — confirm availability and cost within BOM budget.
+- [ ] Confirm Lorlin CK1032 has a 2P variant (fallback for Temperature).
+- [ ] Confirm shaft length and knob compatibility (6 mm D-shaft vs round shaft) for SR1610 / SR1712F.
