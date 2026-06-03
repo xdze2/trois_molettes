@@ -11,7 +11,7 @@ The whole circuit is shaped by one hard constraint: the **6-month battery target
 **Chosen readout (§3.6):** all three rotary switches are **1-pole, diode-encoded** onto their own GPIO; buttons are direct. Every input line is both-edge-interrupt-armed for wake. No ADC, no analog ladder, no gated rail.
 
 ```
-   Li-Po ──► TP4056 ──► VSYS ──► [MCU: RP2040] ──► GPIO ──► IR LED driver ──► 940 nm LED
+   Li-Po ──► TP4056 ──► VBAT ──► [MCU: nRF52840] ──► GPIO ──► IR LED driver ──► 940 nm LED
    (3.0–4.2 V) (charge/protect)      │
                                      ├── 3 GPIO ◄── Fan code (b2..b0)   ┐
                                      ├── 2 GPIO ◄── Mode code (b1..b0)  ├ diode-encoded 1P
@@ -148,13 +148,14 @@ Same pattern for Fan (3 lines) and Mode (2 lines) on their own GPIO. Diodes prev
 
 #### Wake — both-edge interrupts on every line
 
-The MCU sleeps in **DORMANT** (lowest power). Before sleeping, arm **every input line — all rotary code lines and all button lines — for both-edge interrupts**, then go dormant. Any knob move or button press toggles ≥1 line → edge → wake. The ISR doesn't decode anything: it only needs to know *something changed*, then the awake MCU reads all switches, sends, and sleeps again.
+The MCU sleeps in its **deepest viable mode** (nRF52840 System ON with RAM retained, ~1.5–2.4 µA; STM32L4 STOP2; AVR power-down). Before sleeping, arm **every input line — all rotary code lines and all button lines — for wake on both edges**, then sleep. Any knob move or button press toggles ≥1 line → edge → wake. The ISR doesn't decode anything: it only needs to know *something changed*, then the awake MCU reads all switches, sends, and sleeps again.
 
 - **Any move always produces an edge.** A single-step rotary move flips ≥1 code bit; the inter-detent float (all that switch's lines briefly 0) only *adds* edges, so even same-direction code changes are covered. A button is a clean 1-line edge.
 - **Why not OR all lines to one wake pin:** OR gives a *level*, and a move between two non-zero codes can leave it unchanged → missed wake. Per-line edges avoid this. (Same trap as the rejected "all contacts to one level" wake — in digital form.)
-- **No extra hardware.** The per-pin both-edge interrupt *is* a per-bit change detector, for free. (A hardware latch+XOR change-detector — 74HC175 + 74HC86 → one wake pin — would also work but adds 2 ICs and quiescent sleep current against the 6-month budget; kept only as a fallback if per-line wake misbehaves on the bench.)
+- **No extra hardware.** The per-pin change detection *is* a per-bit change detector, for free. (A hardware latch+XOR change-detector — 74HC175 + 74HC86 → one wake pin — would also work but adds 2 ICs and quiescent sleep current against the 6-month budget; kept only as a fallback if per-line wake misbehaves on the bench.)
+- **"Both edges" is usually emulated in deep sleep, and that's fine.** On the preferred parts the deepest mode senses a *level*, not a literal edge (nRF52 SENSE per-pin level + LATCH; AVR INT level), so the firmware arms each line for the opposite of its current level and re-arms on wake. STM32L4 STOP2 is the exception — true hardware both-edge EXTI on any pin. The re-arm step is a few instructions in the already-running wake handler, so it costs nothing measurable. (ATmega PCINT is also genuine hardware both-edge.)
 
-**RP2040 caveat — validate the DORMANT path.** Every RP2040 GPIO supports interrupts and can wake the chip from DORMANT (via `dormant_wake`), with no "only certain pins" restriction. **But** that path lives in the pico-sdk; reaching it cleanly from the **Arduino-Pico core** (which the IR library needs) is fiddly and must be proven on the bench — same validation bucket as the IRremoteESP8266 check. If DORMANT-from-Arduino proves painful, it bears on the MCU choice. See [§8](#8-open-questions).
+**MCU caveat — validate deep-sleep multi-pin wake.** All three candidate parts can wake on ≥13 GPIO from a µA-class mode (nRF52840 all ~48 pins via SENSE/LATCH; STM32L4 any pin via STOP2 EXTI; ATmega328P all pins via PCINT). This is the **first** bench test (§8) — measure sleep current *and* confirm every line wakes on both edges, including non-zero→non-zero code changes. If the preferred board disappoints, fall back down the order (nRF52840 → STM32L4 → ATmega328P).
 
 **Float glitch (readout).** All of a non-shorting switch's code lines momentarily read 0 during the inter-detent float (a false "position 0"). It *helps* wake but must not be sampled as a position — handled by the debounce: wait for two consecutive agreeing reads (see [§7](#7-sleep--wake-sequence)).
 
@@ -178,7 +179,7 @@ Why D over the others:
 | **Rotary total** | | | **9** |
 | Buttons (Powerful / Econo / Swing / Resend) | — | — | 4 (direct) |
 
-≈ **13 input GPIO**, all both-edge-interrupt-armed for wake, well within the RP2040's 26. No ADC, no ladder rail, no comparator, no 2P switches. See [§3.5](#35-the-chosen-scheme--per-switch-diode-encoding) for the wiring and [04_rotary_switch_choice.md](04_rotary_switch_choice.md) for part selection (all three are now 1P, chosen on feel).
+≈ **13 input GPIO**, all both-edge-interrupt-armed for wake, well within any candidate board's pin count (nRF52840 XIAO exposes ~11 on the castellations but the module has many more; STM32L4 and ATmega328P have ample). No ADC, no ladder rail, no comparator, no 2P switches. See [§3.5](#35-the-chosen-scheme--per-switch-diode-encoding) for the wiring and [04_rotary_switch_choice.md](04_rotary_switch_choice.md) for part selection (all three are now 1P, chosen on feel).
 
 ---
 
@@ -190,10 +191,10 @@ Why D over the others:
 | Driver | NPN transistor (2N2222A or S8050), MCU GPIO → base via resistor |
 | Peak current | ~100 mA |
 | Series resistor | ~100 Ω (LED current limit) |
-| GPIO | pin 4 (IRremoteESP8266 default) |
-| Carrier | 38 kHz, generated by the library |
+| GPIO | one carrier-capable output (nRF52840 PWM pin / STM32 timer pin / AVR OCx) |
+| Carrier | 38 kHz, generated by the MCU's PWM/timer peripheral |
 
-The MCU GPIO cannot source ~100 mA directly, so the LED is driven through an NPN transistor (LED + series resistor on the collector, GPIO → base resistor → base, emitter to GND). The ~100 mA pulse is the largest transient in the system and is the reason for the bulk capacitor in [§5](#5-power). The library handles frame assembly, checksum, and 38 kHz modulation — see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md).
+The MCU GPIO cannot source ~100 mA directly, so the LED is driven through an NPN transistor (LED + series resistor on the collector, GPIO → base resistor → base, emitter to GND). The ~100 mA pulse is the largest transient in the system and is the reason for the bulk capacitor in [§5](#5-power). The 38 kHz carrier comes from the MCU's PWM/timer (on nRF52840, the PWM peripheral can clock the whole modulated frame out of a RAM buffer); frame assembly + checksum are firmware, ported from the documented Daikin format — see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md).
 
 ---
 
@@ -201,37 +202,47 @@ The MCU GPIO cannot source ~100 mA directly, so the LED is driven through an NPN
 
 - **Battery:** Li-Po single cell (3.7 V nominal, 3.0–4.2 V range).
 - **Charging / protection:** TP4056 module with protection IC (DW01A + FS8205), exposed via USB-C port. Handles over-discharge cutoff and over-current.
-- **MCU supply:** Li-Po feeds VSYS directly (RP2040 onboard regulator). 1.8–5.5 V input range covers the full Li-Po range.
-- **Switch-encoding current path:** a diode-encoded switch with its wiper at +3.3 V draws continuous current through the closed contact → diodes → pull-down resistors (~33 µA per high line at 100 kΩ; a few tens of µA per switch). **The wiper must stay powered during sleep** — that's how the settled code is held on the lines for the wake interrupt to see an edge. So you *cannot* gate the wiper supply (gating it zeroes all lines and kills wake — the same coupling trap as elsewhere in this design). Instead keep the leakage small with **weak pull-downs** (220 kΩ–1 MΩ; the GPIO inputs are high-impedance, so weak is fine), bringing it to single-digit µA per switch — a handful of µA total across three switches, negligible against the ~1.3 mA board floor. **No gating IC, no analog rail.** Bench-measure to confirm the chosen pull-down value.
+- **MCU supply:** Li-Po feeds the board's battery input (nRF52840 XIAO has an onboard LDO + BATT pad; STM32L4 / AVR boards via their LDO). The nRF52840 core runs 1.7–3.6 V, covering the full Li-Po range.
+- **Switch-encoding current path:** a diode-encoded switch with its wiper at +3.3 V draws continuous current through the closed contact → diodes → pull-down resistors. **The wiper must stay powered during sleep** — that's how the settled code is held on the lines for the wake interrupt to see an edge. So you *cannot* gate the wiper supply (gating it zeroes all lines and kills wake — the same coupling trap as elsewhere in this design). Instead keep the leakage small with **weak pull-downs**. **Now that the board floor is µA-class (≈1.5–2.4 µA on the nRF52840), this leakage is no longer "negligible by comparison" — it can dominate, so it must be designed down, not hand-waved.** At 100 kΩ a high line leaks ~33 µA — *far* too much here; at 1 MΩ it is ~3.3 µA/line, and only the lines that happen to be HIGH in the current code draw at all (~1–2 high lines per switch typically). So use **high-value pull-downs (1 MΩ, the GPIO inputs are high-impedance so this is fine)** to bring total switch leakage to a few µA across all three. **No gating IC, no analog rail.** Bench-measure leakage vs. read reliability to fix the value — it is now a first-order term in the battery budget, not a rounding error.
 - **Bulk capacitor:** 100 µF on the power rail to absorb the ~100 mA IR LED pulse and prevent MCU brownout reset.
 - **Decoupling:** 100 nF ceramic at the MCU supply pins.
 - **Battery sizing:** TBD — driven by the 6-month target and the *measured* sleep current. Size the cell only after bench measurement (see below).
-- **Low-battery LED:** nice to have — monitor VSYS via a divider into a spare ADC, light an LED below threshold.
+- **Low-battery LED:** nice to have — monitor battery voltage via a divider into a spare ADC, light an LED below threshold. (Use a high-value divider, gated or weak, so it doesn't itself become a µA-budget item.)
 
 ---
 
 ## 6. Battery budget
 
-The 6-month target is the hardest constraint in the project and it drives the whole power architecture. Sleep current alone does **not** close it — the supporting circuitry matters as much as the MCU.
+The 6-month target (goal: years) is the hardest constraint, and the MCU choice ([03](03_microcontroller_choice.md)) is what makes it reachable. Because the device sleeps ~100 % of the time, **sleep current ≈ average current ≈ the whole budget**, so the budget is built from two µA-class terms, not one mA-class one.
 
-**Sleep current is not "~1–2 mA" on a stock Pico board.** A bare RP2040 in DORMANT can reach ~180 µA, but the Raspberry Pi Pico *board* carries an always-on RT6150 buck-boost SMPS plus other support circuitry; measured deep-sleep for a stock Pico board is typically **~1.3 mA**. Budget against the board number, not the datasheet die number.
+**What the target demands.** On a 2000 mAh cell:
 
-**The switch-encoding lines draw a little continuous current** (wiper held at 3.3 V through closed contacts to pull-downs). With **weak pull-downs** this is single-digit µA per switch — a handful of µA total, negligible against the board floor. The wiper can't be gated off (that would kill wake — see [§5](#5-power)), so weak pull-downs, not gating, are the lever here. This is far smaller than the ~90 µA the rejected resistor-ladder approach would have cost, and needs no gating IC.
+| Avg current | Life |
+|---|---|
+| ~460 µA | 6 months |
+| ~230 µA | 1 year |
+| ~115 µA | 2 years |
 
-Rough budget at 1.3 mA average: a 2000 mAh cell → ~1500 h ≈ **~9 weeks**, well short of 6 months. The dominant term by far is **board-level standby**, not the switches. To close the gap:
+So the design point is **tens of µA**, and the chosen board must sleep there — which is exactly why the RP2040 (≈1–1.8 mA board → ~9 weeks) was dropped and the nRF52840 XIAO (≈1.5–2.4 µA) chosen; see [03](03_microcontroller_choice.md). Budget against the **board** figure, measured on the bench, not the die datasheet.
 
-1. **Minimise board-level standby.** Either accept the stock Pico's ~1.3 mA (and size the cell / target accordingly), or move to a bare RP2040/RP2350 + an efficient external LDO and drop the SMPS overhead. **This is the single biggest lever** on the 6-month target — everything else (switch leakage, active time) is small by comparison.
-2. **Keep the switch leakage small** with weak pull-downs (above) — a few µA, easily done.
-3. **Keep active time tiny.** Each wake is sub-second and infrequent, so the average is dominated by sleep current — which is why (1) matters most.
+**Two terms, now the same order of magnitude:**
 
-This is an open hardware-validation item, not a solved problem — the achievable sleep current must be measured on the bench before the cell can be sized and the 6-month claim confirmed.
+1. **Board standby** — nRF52840 XIAO ≈ **1.5–2.4 µA** (System ON, RAM retained). The single biggest term historically; now genuinely small.
+2. **Switch-encoding leakage** — wiper at 3.3 V through closed contacts → diodes → pull-downs (see [§5](#5-power)). With **1 MΩ pull-downs**, only the HIGH lines of the current code draw, at ~3.3 µA each → a few µA across all three switches. **At a µA-class board floor this is no longer negligible — it can equal or exceed board standby**, so the pull-down value is a real budget knob (and it cannot be gated, or wake dies). This is the term to bench-tune.
+
+Active time is a non-term: each wake is sub-second and infrequent, so even at tens of mA active the duty-cycle contribution is well under a µA averaged. The average is set entirely by (1) + (2).
+
+**Rough budget at, say, 6 µA total (board + leakage):** a 2000 mAh cell → ~330 000 h, i.e. **multi-year** — comfortably past 6 months and into the "years" goal, with margin for a smaller cell to suit the 25 mm enclosure depth. Even a pessimistic 20 µA (loose pull-downs, board power-path leakage) still clears a year on 2000 mAh.
+
+This is still an open **hardware-validation** item: the achievable board sleep *and* the switch leakage must both be measured before the cell is sized and the claim confirmed. The leverage has simply moved — from "can the MCU even get low enough" (yes, by choosing the right one) to "keep the switch leakage in check" (pull-down value) and "verify the board's battery path doesn't leak" (e.g. the XIAO VBAT note in [03](03_microcontroller_choice.md)).
 
 ---
 
 ## 7. Sleep / wake sequence
 
 ```
-sleep (MCU DORMANT; all code + button lines armed for both-edge IRQ;
+sleep (MCU deepest viable mode — nRF52 System ON / STM32 STOP2 / AVR power-down;
+       all code + button lines armed for both-edge wake (level-sense + re-arm where needed);
        switch wipers held at 3.3 V via weak pull-downs)
   │  any rotary code-line edge  ──or──  button GPIO edge
   ▼
@@ -241,7 +252,7 @@ wake
   debounce: wait for knobs to stop moving (settle window),
             re-read until two consecutive reads agree
   if state changed (or RESEND pressed): build frame, send IR, flash TX LED
-  re-arm both-edge IRQs
+  re-arm wake (set each line's sense to the opposite of its now-settled level)
   ▼
 sleep
 ```
@@ -257,10 +268,11 @@ Both are firmware concerns, not hardware blockers.
 
 ## 8. Open questions
 
-Readout is decided (Approach D, all three switches). Remaining items:
+Readout is decided (Approach D, all three switches); MCU is preferred (nRF52840 XIAO) but bench-gated. Remaining items, in priority order:
 
-- [ ] **DORMANT wake from the Arduino-Pico core.** Confirm the pico-sdk `dormant_wake` path is reachable and reliable from the Arduino core (which IRremoteESP8266 needs), with multiple GPIO armed for both-edge wake. If painful, it bears on the MCU choice. Same bench session as the IR-library check.
-- [ ] **Diode-encode + wake bench test.** Wire one 1P12T (Temp) with its ~19 diodes; verify the nibble reads correctly and that a both-edge interrupt on the code lines wakes on every move, including non-zero→non-zero (the float forces an edge — confirm it).
-- [ ] **Pull-down value.** Measure leakage vs. noise immunity to pick the weak pull-down (220 kΩ–1 MΩ) that keeps switch current to a few µA without flaky reads.
-- [ ] **Sleep current.** Measure the chosen board in DORMANT; decide stock Pico vs bare RP2040/RP2350 + LDO to hit 6 months. Dominant term — see [§6](#6-battery-budget).
+- [ ] **Sleep current + 13-pin wake on the chosen board (the gating test).** On the nRF52840 XIAO: deep-sleep (System ON, RAM retained), arm ~13 GPIO for both-edge wake (per-pin SENSE level + re-arm), measure board sleep current with a µA meter, and confirm every line wakes on either edge — including non-zero→non-zero code changes. Also confirm the board's battery power path doesn't leak (XIAO VBAT note, [03](03_microcontroller_choice.md)). If it disappoints, fall back nRF52840 → STM32L4 (STOP2) → ATmega328P. This decides the MCU and sizes the cell.
+- [ ] **XIAO pin count.** The XIAO nRF52840 breaks out ~11 GPIO on its castellations; this design needs ~13 + IR + TX LED. Either use a board/module that exposes more nRF52840 pins, reduce the line count (e.g. 10-position temp switch → 4 bits unchanged; fold RESEND into a long-press), or solder to extra module pads. Confirm a workable pin map before committing the XIAO specifically.
+- [ ] **Daikin IR transmit.** Port the 35-byte frame + checksum, clock it out at 38 kHz via the MCU PWM/timer through the driver, confirm the FTXM20N2V1B responds. Portable across all three candidate MCUs, so it follows the power test.
+- [ ] **Diode-encode + wake bench test.** Wire one 1P12T (Temp) with its ~19 diodes; verify the nibble reads correctly and that both-edge wake fires on every move, including non-zero→non-zero (the float forces an edge — confirm it).
+- [ ] **Pull-down value.** Now a first-order budget term, not a rounding error. Measure leakage vs. read reliability to pick the value (lean toward 1 MΩ) that keeps switch current to a few µA without flaky reads. See [§6](#6-battery-budget).
 - [ ] **Switch sourcing on feel.** Pick the three 1P switches on detent quality and body size (no pole constraint now); confirm shaft/knob fit. See [04_rotary_switch_choice.md](04_rotary_switch_choice.md).

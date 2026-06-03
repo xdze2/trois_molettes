@@ -19,20 +19,22 @@ Three rotary selectors (Fan/Power, Mode, Temperature) + 3–4 push buttons, an I
 
 | Block | Choice | Status |
 |---|---|---|
-| MCU | RP2040 (Raspberry Pi Pico) | preferred, pending IR-library validation |
-| IR | 940 nm LED + NPN driver, IRremoteESP8266 `IRDaikinAC` | chosen |
-| Rotary readout + wake | **per-switch diode encoding on 1P switches (Approach D)** | chosen; bench-validate DORMANT wake |
+| MCU | **nRF52840 (XIAO)**, alt. STM32L4 / ATmega328P | preferred; bench-validate µA sleep + 13-pin wake |
+| IR | 940 nm LED + NPN driver; **ported Daikin frame** (lib is optional) | chosen |
+| Rotary readout + wake | **per-switch diode encoding on 1P switches (Approach D)** | chosen; bench-validate deep-sleep GPIO wake |
 | Buttons | momentary → GPIO, internal pull-up, wake on edge | chosen |
 | Feedback | single TX LED (WS2812B chain dropped) | chosen |
-| Power | Li-Po + TP4056, gated 3.3 V rail, deep sleep | chosen; cell size pending |
+| Power | Li-Po + TP4056, weak switch pull-downs, deep sleep | chosen; cell size pending |
 
 ---
 
-## 2. MCU — RP2040, with a sleep-current caveat
+## 2. MCU — chosen on sleep current and wake, not on the IR library
 
-RP2040 is preferred: best realistic sleep current, 2 MB flash, direct Li-Po on VSYS, cheap genuine board. Fallback is an ESP32 DevKit if IRremoteESP8266 won't run on the Pico (Arduino-Pico core) — that compatibility is the **first thing to validate**, before any assembly.
+The device sleeps ~100 % of the time, so **sleep current ≈ average current ≈ the whole battery budget** — and the diode-encoded readout needs **~13 GPIO that can wake the MCU on both edges**. Those two, plus a **perfboard-only / dev-board-only** build rule (no PCB fabrication), drive the choice. The IR library — once the headline constraint — is now just a convenience: the Daikin frame is a documented byte array we accept porting.
 
-**The caveat that shapes everything downstream:** the ~1–2 mA figure is the die; a *stock Pico board* sleeps at ~1.3 mA because of its always-on SMPS. That alone gives only ~9 weeks on a 2000 mAh cell. Hitting 6 months likely needs a **bare RP2040/RP2350 + efficient LDO**, plus gating every always-on current path. See [03_microcontroller_choice.md](03_microcontroller_choice.md) and [Battery budget](05_electronics_circuit.md#6-battery-budget).
+**This inverts the earlier RP2040 pick.** The Pico *board* sleeps at ~1–1.8 mA (always-on RT6150 SMPS) → ~9 weeks, missing the target; its only fix (bare RP2040 + LDO, ~180 µA) needs a custom PCB, which the perfboard rule forbids. The cheap ESP32-C parts sleep well but expose too few deep-sleep wake pins (6–8 < 13).
+
+**Preferred: nRF52840 (Seeed XIAO)** — ~1.5–2.4 µA board sleep, all-GPIO per-pin wake, native 38 kHz IR (Nordic Smart Remote class). Alternatives that also clear both gates: **STM32L4 in STOP2** (~2–4 µA, the only true hardware any-pin both-edge) and **ATmega328P power-down** (<1 µA, PCINT both-edge, simplest to hand-build). First bench test is now **sleep + 13-pin wake**, with IR transmit second. See [03_microcontroller_choice.md](03_microcontroller_choice.md) and [Battery budget](05_electronics_circuit.md#6-battery-budget).
 
 ---
 
@@ -53,7 +55,7 @@ This is the same trick a coded rotary switch uses, wired by hand onto a **big, t
 | Mode | 4 | 2 |
 | Temperature | 11 | 4 |
 
-Plus 4 button GPIO ≈ **13 input pins**, all interrupt-armed, of the RP2040's 26.
+Plus 4 button GPIO ≈ **13 input pins**, all interrupt-armed — comfortably within any candidate board's pin count.
 
 ### Why this, over the alternatives considered
 
@@ -63,7 +65,7 @@ Plus 4 button GPIO ≈ **13 input pins**, all interrupt-armed, of the RP2040's 2
 
 ### Still to validate on the bench
 
-The wake depends on **DORMANT-mode GPIO wake reached from the Arduino-Pico core** (which IRremoteESP8266 needs). RP2040 supports wake from any GPIO, but the Arduino-core path to `dormant_wake` must be proven — same bench session as the IR-library check. If it's painful, it bears on the MCU choice. See [05 §8](05_electronics_circuit.md#8-open-questions).
+The wake depends on **deep-sleep GPIO wake on ~13 lines** in whatever the chosen MCU's lowest viable mode is (nRF52 System ON / STM32 STOP2 / AVR power-down). All three preferred parts support it, but it must be proven — measure sleep current *and* confirm every line wakes on both edges, including non-zero→non-zero code changes. This is now the **first** bench test, ahead of IR. See [05 §8](05_electronics_circuit.md#8-open-questions).
 
 ---
 
@@ -81,7 +83,7 @@ One indicator LED, flashes on IR send, confirms the device is alive. The 25-LED 
 
 ## 6. Power
 
-Li-Po single cell, TP4056 USB-C charge/protect module, 100 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. The dominant sleep term is **board-level standby** (~1.3 mA on a stock Pico), so cell size is left **TBD until that's measured** — the measurement, not a guess, sizes the battery and decides stock-board vs bare-chip. Detail and budget in [05_electronics_circuit.md §5–6](05_electronics_circuit.md#5-power).
+Li-Po single cell, TP4056 USB-C charge/protect module, 100 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. With a µA-class board (nRF52840 ~1.5–2.4 µA), board standby and switch leakage are the same order, and the 6-month target has comfortable margin — but cell size is left **TBD until the chosen board's sleep is measured**. Detail and budget in [05_electronics_circuit.md §5–6](05_electronics_circuit.md#5-power).
 
 ---
 
@@ -93,11 +95,11 @@ Send a fresh IR frame on every control change — no confirm step. A settle-wind
 
 ## 8. Open questions (the decisions that still gate the build)
 
-1. **IRremoteESP8266 + DORMANT wake on Pico (Arduino core)** — validate together, first; the diode-encoded wake depends on reaching `dormant_wake` from the Arduino core. Determines RP2040 vs ESP32.
-2. **Achievable sleep current** — bench-measure the chosen board in DORMANT; decides bare-chip vs stock board, and the cell size. The biggest lever on the 6-month target.
+1. **Sleep current + 13-pin both-edge wake** — validate *first*, on the preferred board (nRF52840 XIAO): measure deep-sleep current and confirm all ~13 lines wake on either edge. This is the gating test and the biggest lever on the 6-month target. Decides the MCU.
+2. **Daikin IR transmit** — port/send one frame and confirm the FTXM20N2V1B responds. Portable across all three candidate MCUs, so it follows the power test rather than gating the board choice.
 3. **Secondary modes** — confirm Powerful / Econo / Swing are accepted by the FTXM20N2V1B over IR (sets the final button count).
 4. **Switch choice on feel** — pick the three 1P switches on detent quality and body size (no pole constraint now); confirm shaft/knob fit.
 5. **Enclosure fit** — three knobs (big bodies) side by side in the 80×100 mm panel.
 6. **BOM ≤ €35** — source-check the final 1P switch set + diodes on Tayda / Mouser / LCSC.
 
-(Resolved: readout = per-switch diode encoding on 1P switches. Mode = 4 positions. Feedback = single TX LED. IR = `IRDaikinAC` / DAIKIN.)
+(Resolved: readout = per-switch diode encoding on 1P switches. Mode = 4 positions. Feedback = single TX LED. IR = DAIKIN, transmit ported (`IRDaikinAC` as reference). MCU = nRF52840 (XIAO) preferred, alt. STM32L4 / ATmega328P.)

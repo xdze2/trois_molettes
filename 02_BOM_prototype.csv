@@ -1,6 +1,7 @@
 Category	Component	Variant / Reference	Quantity	Unit price (€, indicative)	Notes	Decision needed?
-Microcontroller	Raspberry Pi Pico (RP2040, no WiFi)	Raspberry Pi Pico H (with headers)	1	4–6	Primary choice. No WiFi overhead, low quiescent current, 2 MB flash.	No — preferred
-Microcontroller	ESP32 DevKit	ESP32-WROOM-32 DevKit v1	1	5–8	Alternative if Pico/Arduino core has IRremoteESP8266 issues. More current draw.	Only if Pico fails
+Microcontroller	nRF52840 dev board	Seeed Studio XIAO nRF52840	1	9–11	Preferred. ~1.5–2.4 µA board sleep, all-GPIO both-edge wake, native 38 kHz IR (PWM). Daikin frame ported (no library). Confirm pin count (~11 broken out vs ~13 needed) — see 03.	Bench-validate sleep + wake
+Microcontroller	STM32L4 board (alt.)	WeAct STM32L4 / Nucleo-L4	1	5–8	Alternative. ~2–4 µA STOP2, genuine any-pin both-edge EXTI. Use if XIAO disappoints.	Only if nRF52840 fails
+Microcontroller	ATmega328P board (alt.)	Pro Mini 3.3 V 8 MHz + USB-serial	1	3–5	Simplest build. <1 µA power-down (BOD off), PCINT both-edge. 8-bit/32 KB. Needs USB-serial to flash.	Only if both above fail
 IR Transmission	IR LED 940 nm	TSAL6400 or TSAL6200	2	0.20–0.50 each	Buy 2: one for prototype, one spare. 5 mm through-hole.	No
 IR Transmission	NPN transistor	2N2222A (TO-92) or S8050	3	0.10–0.20 each	IR LED driver, ~100 mA peak. Buy a few spares.	No
 IR Transmission	Resistor 100 Ω (LED current limit)	Through-hole 1/4W	5	0.05 each	For IR LED drive circuit. Buy a strip.	No
