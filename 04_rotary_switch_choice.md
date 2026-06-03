@@ -116,6 +116,25 @@ Spike amplitude ≈ voltage step size (~300 mV for 11-position ladder) — **bel
 
 **Use only if 2P switches are unavailable or exceed BOM budget.**
 
+### Option C — shift register (74HC165) with periodic wake
+
+Instead of the ADC ladder, each switch position is wired to one input of a daisy-chained **74HC165** (parallel-in, serial-out shift register). The MCU clocks through all inputs in a tight serial read cycle: 3 pins total (CLK, LATCH, DATA) regardless of total input count.
+
+```
+switch positions ──► [74HC165] ──┐
+                                  ├── DATA → MCU (1 pin)
+switch positions ──► [74HC165] ──┘
+                    CLK, LATCH ←── MCU (2 pins)
+```
+
+- Purely digital — no ADC, no threshold tuning, no resistor ladder.
+- Scales freely: add more switches, same 3-pin interface.
+- Per-position wiring is simpler: one wire per position to GND, pull-ups on the 165.
+
+**Wake-from-sleep problem:** the shift register is passive — the MCU must be awake to initiate a read cycle. It cannot detect a position change while sleeping. A separate wake signal is still required, so the 2P switch requirement is not eliminated. The only alternative is **periodic wake** (e.g. every 2–5 seconds to poll), which increases average sleep current and reduces battery life compared to edge-triggered wake.
+
+**Verdict:** the shift register is a cleaner digital design and worth considering if ADC noise or ladder calibration becomes a problem in practice. It does not help with the wake problem. Combine with Option A (2P switch second pole for wake) if used, or accept the battery life penalty of periodic polling.
+
 ---
 
 ## Decision matrix
