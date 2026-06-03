@@ -19,7 +19,7 @@
 |---|---|---|---|---|---|
 | Form factor | 21×51 mm | 18×45 mm | 18×45 mm | 28×54 mm | 25×19 mm |
 | Flash | 2 MB | 32 KB | 48 KB | 4 MB | 8 KB |
-| Sleep current | ~1–2 mA | ~15–20 mA (no proper sleep) | ~3 mA | ~10–20 mA | ~0.1 mA |
+| Sleep current | ~1–2 mA die / **~1.3 mA stock board** | ~15–20 mA (no proper sleep) | ~3 mA | ~10–20 mA | ~0.1 mA |
 | Operating voltage | 1.8–5.5 V | 1.8–5.5 V | 1.8–5.5 V | 2.3–3.6 V core | 2.7–5.5 V |
 | Onboard LDO | Yes (VSYS pin) | Yes (RAW pin) | Yes | Yes (VIN pin) | No |
 | Direct Li-Po feed | Yes ✓ | Yes ✓ | Yes ✓ | Yes ✓ | Risky |
@@ -63,6 +63,8 @@ Recommended additions regardless of MCU choice:
 - Direct Li-Po on VSYS pin
 - Genuine board is already cheap (€4–6 from EU distributor, 2-day shipping)
 - Clone has almost no price advantage — buy genuine
+
+**Caveat on sleep current:** the ~1–2 mA figure is the die. A *stock Pico board* sleeps at ~1.3 mA because of its always-on RT6150 SMPS, which alone gives only ~9 weeks on a 2000 mAh cell — short of the 6-month target. Reaching 6 months likely requires a **bare RP2040 (or RP2350) + efficient external LDO** rather than the stock board, plus gating the resistor-ladder rail off during sleep. Validate on the bench before committing the board form. See [Battery budget](05_electronics_circuit.md#6-battery-budget).
 
 **Blocker to verify first:** IRremoteESP8266 on Pico with Arduino-Pico core. If it fails, fall back to ESP32 DevKit clone.
 

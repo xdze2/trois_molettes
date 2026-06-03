@@ -1,6 +1,6 @@
 # Rotary Switch Choice
 
-Three rotary selectors are needed: **Mode** (5 pos), **Fan speed** (5 pos), **Temperature** (10–11 pos).
+Three rotary selectors are needed: **Mode** (4 pos: Fan/Cool/Heat/Dry), **Fan speed** (6 pos: OFF + 1–5), **Temperature** (11 pos: 16–26 °C, or 10 pos: 16–25 °C fallback). All must be **2-pole** — one pole for the ADC ladder, one for the alternating-contact wake edge.
 
 ## Switch families considered
 
@@ -65,97 +65,15 @@ Ultra-compact, ~13 mm, up to 12 positions (1P or 2P), 2.54 mm PCB pitch. Slightl
 
 ---
 
-## Readout method: resistor ladder on ADC
+## Readout & wake — see the circuit doc
 
-All selectors wired as a resistor ladder on a single ADC pin. Equal resistors in series between each position output; common pin to ADC; one end to 3.3 V, other end to GND.
-
-- Mode (4 pos) → 1 ADC pin
-- Fan (6 pos) → 1 ADC pin
-- Temperature (11 pos) → 1 ADC pin
-
-Total: **3 ADC pins**. On RP2040 (Pico), ADC0–ADC2 are all usable without restriction.
-
-Ladder resistor value: 10 kΩ per step is a safe starting point. Spacing between voltage levels is ~300 mV per step for the 11-position ladder (3.3 V ref, 12-bit ADC → ~3 mV/LSB). Margin is comfortable — noise is typically a few mV.
-
-**Important:** power the ladder from the regulated 3.3 V rail, not VSYS (raw Li-Po). A varying supply voltage would shift all ADC readings as the battery drains.
-
-## Wake-from-sleep detection
-
-The MCU sleeps between transmissions and must wake on any knob or button change. Buttons naturally generate a GPIO edge. Rotary switches on a resistor ladder do not — a position change produces a DC voltage shift, not an edge.
-
-**Sleep is mandatory.** Without it, the MCU draws ~25 mA continuously. At that rate a 2000 mAh cell lasts ~80 hours — weeks, not the 6-month target. Sleep current on RP2040 is ~1–2 mA, putting the budget back in range.
-
-Three approaches to generate a wake edge from a rotary switch:
-
-### On relying on the inter-contact float
-
-An obvious approach is to detect the wiper floating between contacts — when the wiper lifts off a contact, a pull-up drives the GPIO high, producing a rising edge.
-
-This is fragile for two reasons:
-
-**Non-shorting vs shorting switches.** Non-shorting (break-before-make) switches have a guaranteed float period — the wiper leaves the old contact before touching the new one. Shorting (make-before-break) switches may have no float at all; the wiper bridges both contacts simultaneously during transition. The wake pulse may never occur on a shorting switch.
-
-**Float duration is unspecified.** Even on non-shorting switches, the spec only guarantees the order of events, not the duration of the float. A fast detent snap can produce a float of only a few microseconds — potentially too short to reliably trigger a GPIO interrupt depending on MCU wake latency.
-
-**Conclusion:** do not rely on the inter-contact float for wake detection. Detect the voltage change on landing instead — either via a second pole (Option A) or an HPF spike on the ladder wire (Option B).
-
----
-
-### Option A — 2-pole switch (preferred)
-
-One pole drives the ADC ladder. The second pole has all contacts shorted to 3.3 V, wiper to a GPIO with pull-down. Any knob movement breaks contact → falling edge → MCU wakes.
-
-- Clean, reliable, no extra components.
-- Wake signal is independent of shorting/non-shorting switch type.
-- Requires **2P variants** for all rotary switches.
-- Total: 3 ADC pins + 3 wake GPIOs. Well within RP2040's 26 GPIOs.
-
-### Option B — RC differentiator + comparator (fallback)
-
-A high-pass RC filter (cap in series, resistor to GND) on the ADC wiper line differentiates the DC step into a voltage spike on transition:
-
-```
-wiper ──┤C├──┬── to comparator
-             R
-             │
-            GND
-```
-
-Spike amplitude ≈ voltage step size (~300 mV for 11-position ladder) — **below the RP2040 GPIO logic threshold (~1.0–1.6 V)**. A comparator with adjustable threshold is required to detect it reliably.
-
-- Works on 1P switches — no 2P requirement.
-- Robust to shorting/non-shorting switch type — fires on the voltage step at landing, not on the float.
-- Adds a comparator IC (e.g. LM393 dual, one per two switches) plus RC passives.
-- Detects transitions only, not settled position — acceptable for wake purposes.
-- Mechanical bounce during slow rotation may produce multiple spikes — also acceptable.
-- More complex and likely more expensive than Option A.
-
-**Use only if 2P switches are unavailable or exceed BOM budget.**
-
-### Option C — shift register (74HC165) with periodic wake
-
-Instead of the ADC ladder, each switch position is wired to one input of a daisy-chained **74HC165** (parallel-in, serial-out shift register). The MCU clocks through all inputs in a tight serial read cycle: 3 pins total (CLK, LATCH, DATA) regardless of total input count.
-
-```
-switch positions ──► [74HC165] ──┐
-                                  ├── DATA → MCU (1 pin)
-switch positions ──► [74HC165] ──┘
-                    CLK, LATCH ←── MCU (2 pins)
-```
-
-- Purely digital — no ADC, no threshold tuning, no resistor ladder.
-- Scales freely: add more switches, same 3-pin interface.
-- Per-position wiring is simpler: one wire per position to GND, pull-ups on the 165.
-
-**Wake-from-sleep problem:** the shift register is passive — the MCU must be awake to initiate a read cycle. It cannot detect a position change while sleeping. A separate wake signal is still required, so the 2P switch requirement is not eliminated. The only alternative is **periodic wake** (e.g. every 2–5 seconds to poll), which increases average sleep current and reduces battery life compared to edge-triggered wake.
-
-**Verdict:** the shift register is a cleaner digital design and worth considering if ADC noise or ladder calibration becomes a problem in practice. It does not help with the wake problem. Combine with Option A (2P switch second pole for wake) if used, or accept the battery life penalty of periodic polling.
+How the switches are read (resistor ladder on ADC) and how they wake the MCU (alternating-contact second pole, with RC-comparator and shift-register alternatives) is covered in [05_electronics_circuit.md](05_electronics_circuit.md). The conclusion that matters for switch *selection*: **all three selectors must be 2-pole** — one pole for the ADC ladder, one for the alternating-contact wake edge.
 
 ---
 
 ## Decision matrix
 
-All switches must be **2-pole (2P)** — one pole for ADC ladder, one pole for wake GPIO. See "Wake-from-sleep detection" above.
+All switches must be **2-pole (2P)** — one pole for the ADC ladder, one pole for the alternating-contact wake GPIO. See [05_electronics_circuit.md](05_electronics_circuit.md) for the readout and wake circuit.
 
 | Selector | Positions needed | Candidate | Body size | Poles | Decision |
 |---|---|---|---|---|---|
@@ -185,7 +103,8 @@ With a 12-position switch bridged to 11: full 16–26 °C coverage is possible.
 ## Open questions
 
 - [ ] Confirm enclosure footprint allows three knobs (16–17 mm body) side by side in 80×100 mm panel.
-- [ ] Verify ADC voltage spacing for 11-position ladder on bench (3.3 V ref, 12-bit → ~3 mV per LSB, ~300 mV per step with equal 10 kΩ resistors).
 - [ ] Source and price check: Alpha SR1610 2P12T and SR1712F 2P on Tayda / Mouser / LCSC — confirm availability and cost within BOM budget.
 - [ ] Confirm Lorlin CK1032 has a 2P variant (fallback for Temperature).
 - [ ] Confirm shaft length and knob compatibility (6 mm D-shaft vs round shaft) for SR1610 / SR1712F.
+
+(Circuit-level open questions — ADC margins, gated rail, sleep current — are in [05_electronics_circuit.md](05_electronics_circuit.md).)

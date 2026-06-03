@@ -179,11 +179,11 @@ This is the primary daily control. Position 0 is OFF.
 | 4 | 4 | `setPower(true)`, `setFan(4)` |
 | 5 | MAX | `setPower(true)`, `setFan(kDaikinFanMax)` |
 
-LED feedback: one LED per position, all same colour. Position 0 (OFF) LED off.
+Feedback: none per position — the knob position is the state. Only the shared TX LED flashes on send.
 
 Note: `kDaikinFanAuto` is not exposed — it adds a position and is rarely used in practice.
 
-### 5.3 Mode selector (rotary, 4–5 positions)
+### 5.3 Mode selector (rotary, 4 positions)
 
 Set seasonally. Does not include OFF (handled by the fan knob).
 
@@ -194,7 +194,7 @@ Set seasonally. Does not include OFF (handled by the fan knob).
 | 2 | HEAT | `setMode(kDaikinHeat)` |
 | 3 | DRY | `setMode(kDaikinDry)` |
 
-LED feedback: one LED per position, colour-coded (blue = cool, red = heat, green = fan, yellow = dry).
+Feedback: none per position — the knob position is the state.
 
 Note: the 8404-3C on hand is 4 positions — matches exactly (FAN / COOL / HEAT / DRY). If Dry is dropped, 3 positions suffice.
 
@@ -207,22 +207,24 @@ Note: the 8404-3C on hand is 4 positions — matches exactly (FAN / COOL / HEAT 
 | … | … |
 | 10 | 26 |
 
-A Lorlin 1P12T bridged to 11 positions covers this range exactly. Wired as a resistor ladder on one analog pin.
+A 2P12T switch bridged to 11 positions covers this range exactly. One pole wired as a resistor ladder on one analog pin; the second pole provides the alternating-contact wake edge.
 
-If the 11-position selector is too large for the enclosure, fall back to an EC11 encoder (infinite rotation, 1-click = 1 °C, push to resend).
+If the 11-position selector is too large for the enclosure, fall back to a **10-position switch** mapped to 16–25 °C (dropping 26 °C) — see [04_rotary_switch_choice.md](04_rotary_switch_choice.md#temperature-range-with-10-positions). An EC11 incremental encoder is **not** a valid fallback: its output is relative, requiring stored software state, which violates the stateless principle and loses position across deep sleep / battery removal.
 
-LED feedback: 11 LEDs in an arc, one lit per temperature step.
+Feedback: none per position — the knob position is the state.
 
 ### 5.5 Push buttons
 
-| Button | Function | IR call | LED |
-|---|---|---|---|
-| PWR | Toggle Powerful mode | `setPowerful(!state)` | Lit when active |
-| ECO | Toggle Econo mode | `setEcono(!state)` | Lit when active |
-| SWING | Toggle vertical swing | `setSwingVertical(!state)` | Lit when active |
-| RESEND | Retransmit full state | `send()` | Brief flash on TX LED |
+| Button | Function | IR call |
+|---|---|---|
+| PWR | Toggle Powerful mode | `setPowerful(!state)` |
+| ECO | Toggle Econo mode | `setEcono(!state)` |
+| SWING | Toggle vertical swing | `setSwingVertical(!state)` |
+| RESEND | Retransmit full state | `send()` |
 
 Powerful and Econo are mutually exclusive — activating one clears the other.
+
+The button toggle states (PWR / ECO / SWING) are the **only** internal software state in the device — they have no absolute physical position to read back, unlike the knobs. Every send flashes the shared TX LED.
 
 Note: Quiet is a fan speed value (`kDaikinFanQuiet`), not a boolean flag. It is not exposed as a button — it would conflict with the fan knob's stateless readout.
 
@@ -236,11 +238,7 @@ The RESEND button re-transmits the current state without changing anything — r
 
 | Zone | Count | Type | Purpose |
 |---|---|---|---|
-| Mode | 5 | WS2812B | Active mode colour |
-| Fan | 6 | WS2812B | Active speed |
-| Temperature | 11 | WS2812B | Active temperature |
-| Button indicators | 3 | WS2812B | PWR / ECO / SWING active |
-| IR TX | 1 | Simple LED | Blinks on every send |
-| **Total** | **26** | | |
+| IR TX | 1 | Simple LED | Blinks on every send; confirms battery is live |
+| **Total** | **1** | | |
 
-All 25 WS2812B LEDs on a single data chain → 1 GPIO pin. IR TX LED on a separate GPIO (direct drive, no transistor needed at indicator current).
+A single TX indicator LED, direct GPIO drive (no transistor needed at indicator current). The per-position WS2812B chain was dropped — incompatible with the 6-month battery target (~15 mA quiescent for ~25 LEDs) and redundant with the stateless "knob position = state" principle. See [01_technical_design.md §5](01_technical_design.md).

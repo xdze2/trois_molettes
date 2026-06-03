@@ -60,13 +60,13 @@ Three selectors, each wired with **two poles**: one for ADC readout (resistor la
 | Mode | 4 (Fan/Cool/Heat/Dry) | 8404-3C on hand (3P4T, spare poles unused) | unknown | RS1010 2P4T |
 | Temperature | 11 (16–26 °C) | Alpha SR1610 2P12T (bridged to 11) | 16 mm | Lorlin CK1032 2P bridged to 11 (27.5 mm, bulkier) |
 
-**Resistor ladder (pole 1):** 10 kΩ per step, powered from regulated 3.3 V rail. ~300 mV spacing per step for 11-position ladder — comfortable margin above ADC noise floor. Do not power from VSYS (battery voltage varies and would shift all readings).
+**Resistor ladder (pole 1):** 10 kΩ per step, powered from a **GPIO-gated** regulated 3.3 V rail — enabled only while awake, off during sleep so the ladders draw no current (~90 µA across three ladders if always on). ~300 mV spacing per step for 11-position ladder — comfortable margin above ADC noise floor. Do not power from VSYS (battery voltage varies and would shift all readings).
 
-**Wake detection (pole 2):** all contacts of the second pole shorted to 3.3 V, wiper to GPIO with pull-down. Knob movement breaks contact → falling edge → MCU wakes from sleep.
+**Wake detection (pole 2):** the second pole's contacts are wired in an **alternating** pattern (odd positions → 3.3 V, even positions → GND), wiper to a GPIO with interrupt on both edges. Landing on any adjacent detent flips the settled level → clean edge → MCU wakes. This detects the *settled* level on the new contact, not the inter-contact float, so it is independent of shorting/non-shorting switch type and float duration. Do **not** tie all pole-2 contacts to one level — that collapses into the unreliable float method. See [05_electronics_circuit.md](05_electronics_circuit.md#32-option-a--2-pole-switch-alternating-contact-wake-preferred) for the corner case (same-parity 2-step jump) and full rationale.
 
 Pin budget: 3 ADC pins + 3 digital GPIOs for rotary switches. Well within RP2040's 26 GPIOs.
 
-**Sleep is non-negotiable.** Without sleep the MCU draws ~25 mA continuously → ~80 hours on a 2000 mAh cell. The 6-month target requires sleep current (~1–2 mA on RP2040). "Always-on" is not a viable alternative.
+**Sleep is non-negotiable.** Without sleep the MCU draws ~25 mA continuously → ~80 hours on a 2000 mAh cell. But sleep alone does not close the 6-month target: a stock Pico board sleeps at ~1.3 mA (not the ~1–2 mA die figure), and three always-on ladders add ~90 µA. The architecture must gate the ladder rail off during sleep and minimise board-level standby. See [Battery budget](05_electronics_circuit.md#6-battery-budget) — this is an open bench-validation item, not a solved number.
 
 **Fallback if 2P switches are unavailable:** RC differentiator (cap + resistor) on the ADC wiper produces a spike on position change, detected via a comparator IC. Spike amplitude (~300 mV) is below GPIO logic threshold so a bare GPIO cannot be used — a comparator with adjustable threshold is required. More complex and costly than the 2P switch approach. See [04_rotary_switch_choice.md](04_rotary_switch_choice.md) for details.
 
@@ -99,16 +99,15 @@ Note: Quiet is a fan speed value in the IR protocol (`kDaikinFanQuiet`), not a b
 
 ## 5. Feedback — LED
 
-Minimal feedback, consistent with the stateless interface principle.
+A **single TX indicator LED**, consistent with the stateless interface principle: the knob positions *are* the state display, so no per-position feedback is needed.
 
-**Minimum viable (spec requirement):**
-- 1 LED: blinks on IR transmission, confirms battery is live.
+- 1 LED: blinks on IR transmission, confirms battery is live. Direct GPIO drive.
 
-**Extended option:**
-- WS2812B chain: 5 mode + 5–6 fan + 11 temperature + 3 button state = ~25 LEDs on 1 GPIO.
-- This contradicts the stateless principle for buttons (which have internal state) but is optional visual reinforcement.
+**WS2812B chain — dropped.** A 25-LED chain was considered and rejected on two grounds:
+- **Battery.** Each WS2812B draws ~0.5–1 mA quiescent even when displaying "off" (the internal controller is always powered). ~25 LEDs ≈ ~15 mA continuous — ~10× the entire sleep budget, incompatible with the 6-month target. Cutting their rail during sleep would leave them dark exactly when the device is at rest.
+- **Redundant with the core principle.** "Knob position = state" already provides the feedback the chain would duplicate.
 
-Decision: start with the single TX LED. Add WS2812B chain only if the single LED feels insufficient during use.
+The single TX LED is the firm design, not a starting point.
 
 ---
 
@@ -117,7 +116,7 @@ Decision: start with the single TX LED. Add WS2812B chain only if the single LED
 - **Battery:** Li-Po single cell (3.7 V nominal, 3.0–4.2 V range).
 - **Charging:** TP4056 module with protection IC (DW01A + FS8205), exposed via USB-C port.
 - **Bulk capacitor:** 100 µF on the power rail to absorb the ~100 mA IR LED spike and prevent MCU brownout.
-- **Battery sizing:** TBD — driven by 6-month target. With Pico at ~1–2 mA sleep and ~25 mA active (brief pulses only), a 1000–2000 mAh cell is likely sufficient.
+- **Battery sizing:** TBD — driven by the 6-month target and the *measured* sleep current. A stock Pico board (~1.3 mA) on a 2000 mAh cell gives only ~9 weeks; hitting 6 months likely needs a bare RP2040/RP2350 + efficient LDO and the gated ladder rail. Size the cell only after bench measurement. See [Battery budget](05_electronics_circuit.md#6-battery-budget).
 - **Low-battery LED:** nice to have.
 
 ---
@@ -126,6 +125,8 @@ Decision: start with the single TX LED. Add WS2812B chain only if the single LED
 
 The firmware sends a new IR frame on every control change (knob moved, button pressed). No "confirm" step. The Resend button retransmits the current state without changing it.
 
+A **settle window** debounce applies: on wake, the firmware waits for the knobs to stop moving and the ladder reads to agree before sending, so sweeping a knob across several detents produces a single send rather than one transmission per intermediate position. See the [sleep / wake sequence](05_electronics_circuit.md#7-sleep--wake-sequence).
+
 ---
 
 ## 8. Open Questions
@@ -133,6 +134,8 @@ The firmware sends a new IR frame on every control change (knob moved, button pr
 1. **IRremoteESP8266 on Pico** — must validate before committing to RP2040.
 2. **Secondary modes supported by FTXM20N2V1B** — confirm Powerful / Econo / Swing via IR test.
 3. **Temperature selector: 11-position 2P part** — confirm enclosure fit with three knobs side by side; source Alpha SR1610 2P12T.
-4. **LED scope** — single TX LED or full WS2812B chain?
+4. **Achievable sleep current** — measure stock Pico board sleep on the bench (expect ~1.3 mA, not the ~1–2 mA die figure). Decides whether a bare RP2040/RP2350 + external LDO is needed to hit 6 months. Drives cell sizing.
 5. **ADC ladder margins** — verify 11-position ladder on Pico 12-bit ADC on bench.
 6. **BOM cost** — hard limit €35 total. Source check on Alpha SR1610 2P and SR1712F 2P (Tayda / Mouser / LCSC).
+
+(LED scope resolved: single TX LED only — see §5.)

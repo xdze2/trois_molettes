@@ -38,7 +38,7 @@ Controls are ordered by frequency of use.
 | # | Function | Range | Control type | Frequency of change |
 |---|---|---|---|---|
 | 1 | Power + Fan speed | OFF / 1 / 2 / 3 / 4 / 5 | Rotary selector, 6 positions | Daily |
-| 2 | Mode | Fan / Cool / Heat / Dry | Rotary selector, 4–5 positions | Seasonal (every few months) |
+| 2 | Mode | Fan / Cool / Heat / Dry | Rotary selector, 4 positions | Seasonal (every few months) |
 | 3 | Target temperature | 16–26 °C | Rotary selector, 11 positions (1 °C steps) | Infrequent (per room setting) |
 
 Fan speed position 0 is OFF. This makes the fan knob the primary on/off control — the one touched every day.
@@ -101,7 +101,8 @@ Battery life is a hard constraint that drives microcontroller selection, LED cou
 
 ## 9. Open Questions
 
-1. **Mode count: 4 or 5?** — Does the design include Dry mode? Determines switch position count.
-2. **Secondary modes support** — Confirm which of Powerful / Night / Econo the FTXM20N2V1B accepts via IR.
-3. **IR variant for ARC466A33** — Identify the correct IRremoteESP8266 protocol class.
-4. **Temperature control resolution** — Confirm 11-position selector fits the enclosure layout alongside the other two knobs.
+1. **Secondary modes support** — Confirm which of Powerful / Econo / Swing the FTXM20N2V1B accepts via IR.
+2. **Temperature control resolution** — Confirm 11-position selector fits the enclosure layout alongside the other two knobs (fallback: 10-position, 16–25 °C).
+3. **6-month battery target** — The hard constraint. Achievable only with the MCU asleep, the resistor-ladder rail gated off during sleep, and minimal board-level standby. Sleep current must be measured on the bench (stock Pico board is ~1.3 mA, not the ~1–2 mA die figure) before the cell can be sized and the target confirmed. See [01_technical_design.md](01_technical_design.md) and [05_electronics_circuit.md](05_electronics_circuit.md#6-battery-budget).
+
+Resolved: Mode = 4 positions (Fan/Cool/Heat/Dry, no OFF). IR protocol = `IRDaikinAC` / DAIKIN base variant. Feedback = single TX LED only (WS2812B chain dropped).
