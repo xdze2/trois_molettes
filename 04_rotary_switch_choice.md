@@ -87,11 +87,26 @@ The MCU sleeps between transmissions and must wake on any knob or button change.
 
 Three approaches to generate a wake edge from a rotary switch:
 
+### On relying on the inter-contact float
+
+An obvious approach is to detect the wiper floating between contacts — when the wiper lifts off a contact, a pull-up drives the GPIO high, producing a rising edge.
+
+This is fragile for two reasons:
+
+**Non-shorting vs shorting switches.** Non-shorting (break-before-make) switches have a guaranteed float period — the wiper leaves the old contact before touching the new one. Shorting (make-before-break) switches may have no float at all; the wiper bridges both contacts simultaneously during transition. The wake pulse may never occur on a shorting switch.
+
+**Float duration is unspecified.** Even on non-shorting switches, the spec only guarantees the order of events, not the duration of the float. A fast detent snap can produce a float of only a few microseconds — potentially too short to reliably trigger a GPIO interrupt depending on MCU wake latency.
+
+**Conclusion:** do not rely on the inter-contact float for wake detection. Detect the voltage change on landing instead — either via a second pole (Option A) or an HPF spike on the ladder wire (Option B).
+
+---
+
 ### Option A — 2-pole switch (preferred)
 
 One pole drives the ADC ladder. The second pole has all contacts shorted to 3.3 V, wiper to a GPIO with pull-down. Any knob movement breaks contact → falling edge → MCU wakes.
 
 - Clean, reliable, no extra components.
+- Wake signal is independent of shorting/non-shorting switch type.
 - Requires **2P variants** for all rotary switches.
 - Total: 3 ADC pins + 3 wake GPIOs. Well within RP2040's 26 GPIOs.
 
@@ -109,6 +124,7 @@ wiper ──┤C├──┬── to comparator
 Spike amplitude ≈ voltage step size (~300 mV for 11-position ladder) — **below the RP2040 GPIO logic threshold (~1.0–1.6 V)**. A comparator with adjustable threshold is required to detect it reliably.
 
 - Works on 1P switches — no 2P requirement.
+- Robust to shorting/non-shorting switch type — fires on the voltage step at landing, not on the float.
 - Adds a comparator IC (e.g. LM393 dual, one per two switches) plus RC passives.
 - Detects transitions only, not settled position — acceptable for wake purposes.
 - Mechanical bounce during slow rotation may produce multiple spikes — also acceptable.
