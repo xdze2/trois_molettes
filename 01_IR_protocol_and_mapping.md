@@ -241,4 +241,4 @@ The RESEND button re-transmits the current state without changing anything — r
 | IR TX | 1 | Simple LED | Blinks on every send; confirms battery is live |
 | **Total** | **1** | | |
 
-A single TX indicator LED, direct GPIO drive (no transistor needed at indicator current). The per-position WS2812B chain was dropped — incompatible with the 6-month battery target (~15 mA quiescent for ~25 LEDs) and redundant with the stateless "knob position = state" principle. See [01_technical_design.md §5](01_technical_design.md).
+A single TX indicator LED, direct GPIO drive (no transistor needed at indicator current). The per-position WS2812B chain was dropped — incompatible with the 6-month battery target (~15 mA quiescent for ~25 LEDs) and redundant with the stateless "knob position = state" principle. See [01_technical_design_overview.md §5](01_technical_design_overview.md).

@@ -1,6 +1,8 @@
 # Rotary Switch Choice
 
-Three rotary selectors are needed: **Mode** (4 pos: Fan/Cool/Heat/Dry), **Fan speed** (6 pos: OFF + 1–5), **Temperature** (11 pos: 16–26 °C, or 10 pos: 16–25 °C fallback). All must be **2-pole** — one pole for the ADC ladder, one for the alternating-contact wake edge.
+Three rotary selectors are needed: **Mode** (4 pos: Fan/Cool/Heat/Dry), **Fan speed** (6 pos: OFF + 1–5), **Temperature** (11 pos: 16–26 °C, or 10 pos: 16–25 °C fallback).
+
+**All three switches are plain 1-pole (1P)** — the chosen readout is per-switch diode encoding (Approach D, see [05_electronics_circuit.md §3](05_electronics_circuit.md#3-readout--wake--design-options)): each switch's contacts are diode-encoded into a small binary code, and those code lines double as the both-edge wake interrupt. No 2-pole switches, no resistor ladders, no ADC. **Switches are therefore chosen purely on body size and detent feel** — the position count just sets how many code lines (Fan 3, Mode 2, Temp 4).
 
 ## Switch families considered
 
@@ -67,23 +69,23 @@ Ultra-compact, ~13 mm, up to 12 positions (1P or 2P), 2.54 mm PCB pitch. Slightl
 
 ## Readout & wake — see the circuit doc
 
-How the switches are read (resistor ladder on ADC) and how they wake the MCU (alternating-contact second pole, with RC-comparator and shift-register alternatives) is covered in [05_electronics_circuit.md](05_electronics_circuit.md). The conclusion that matters for switch *selection*: **all three selectors must be 2-pole** — one pole for the ADC ladder, one for the alternating-contact wake edge.
+How the switches are read and woken — the chosen per-switch diode encoding (Approach D), and the rejected alternatives (ladder + 2P, ladder + comparator, off-the-shelf coded switch) — is covered in [05_electronics_circuit.md §3](05_electronics_circuit.md#3-readout--wake--design-options). The conclusion that matters for switch *selection*: **all three are 1P**, chosen on size and feel.
 
 ---
 
 ## Decision matrix
 
-All switches must be **2-pole (2P)** — one pole for the ADC ladder, one pole for the alternating-contact wake GPIO. See [05_electronics_circuit.md](05_electronics_circuit.md) for the readout and wake circuit.
+All three are **1P**, diode-encoded (Approach D). Choose on **body size and detent feel**; any spare poles on an on-hand part are simply unused. Code-line count per switch: Fan 3, Mode 2, Temp 4.
 
-| Selector | Positions needed | Candidate | Body size | Poles | Decision |
-|---|---|---|---|---|---|
-| Mode | 4 | 8404-3C (on hand) | unknown | 3P4T | **preferred** (spare poles unused) |
-| Mode | 4 | RS1010 2P4T | compact | 2P | alternative |
-| Fan speed | 6 | Alpha SR1712F 2P8T (bridged to 6) | 17 mm | 2P | **preferred** |
-| Temperature | 11 | Alpha SR1610 2P12T (bridged to 11) | 16 mm | 2P | **preferred** |
-| Temperature | 11 | Lorlin CK1032 2P bridged to 11 | 27.5 mm | 2P | fallback (bulkier) |
-| Temperature | 11 | Grayhill 56SP12 | compact | 1P | **ruled out — ~€30, exceeds BOM budget** |
-| Temperature | 11 | NKK MR-K112 | ultra-compact | 2P | ruled out — expensive/overkill |
+| Selector | Positions | Candidate (1P) | Body size | Notes |
+|---|---|---|---|---|
+| Mode | 4 | 8404-3C (on hand) | unknown | on hand; 4 pos = Fan/Cool/Heat/Dry exactly. Spare poles unused. |
+| Mode | 4 | RS1010 1P | compact | alternative |
+| Fan speed | 6 | Alpha SR1712F 1P8T (bridged to 6) | 17 mm | preferred — good feel, common |
+| Temperature | 11 | Alpha SR1610 1P12T (bridged to 11) | 16 mm | preferred — widely stocked |
+| Temperature | 11 | Lorlin CK1032 1P (bridged to 11) | 27.5 mm | alternative — bigger, very tactile |
+| Temperature | 11 | Grayhill 56 1P12T | compact | alternative — compact but pricier |
+| Temperature | 11 | Coded rotary switch (Nidec SH-7000 / ALPS EC05) | 7 mm | ruled out — too small / screwdriver feel (Approach C) |
 
 ### Temperature range with 10 positions
 
@@ -103,8 +105,7 @@ With a 12-position switch bridged to 11: full 16–26 °C coverage is possible.
 ## Open questions
 
 - [ ] Confirm enclosure footprint allows three knobs (16–17 mm body) side by side in 80×100 mm panel.
-- [ ] Source and price check: Alpha SR1610 2P12T and SR1712F 2P on Tayda / Mouser / LCSC — confirm availability and cost within BOM budget.
-- [ ] Confirm Lorlin CK1032 has a 2P variant (fallback for Temperature).
-- [ ] Confirm shaft length and knob compatibility (6 mm D-shaft vs round shaft) for SR1610 / SR1712F.
+- [ ] Source and price check on Tayda / Mouser / LCSC: three **1P** switches (Alpha SR1712F 1P for Fan; Alpha SR1610 1P12T / Lorlin CK1032 1P / Grayhill 56 1P12T for Temp) + small-signal diodes.
+- [ ] Pick all three on **detent feel and body size** (unconstrained by poles); confirm shaft + knob compatibility (6 mm D-shaft vs round).
 
 (Circuit-level open questions — ADC margins, gated rail, sleep current — are in [05_electronics_circuit.md](05_electronics_circuit.md).)

@@ -103,6 +103,6 @@ Battery life is a hard constraint that drives microcontroller selection, LED cou
 
 1. **Secondary modes support** — Confirm which of Powerful / Econo / Swing the FTXM20N2V1B accepts via IR.
 2. **Temperature control resolution** — Confirm 11-position selector fits the enclosure layout alongside the other two knobs (fallback: 10-position, 16–25 °C).
-3. **6-month battery target** — The hard constraint. Achievable only with the MCU asleep, the resistor-ladder rail gated off during sleep, and minimal board-level standby. Sleep current must be measured on the bench (stock Pico board is ~1.3 mA, not the ~1–2 mA die figure) before the cell can be sized and the target confirmed. See [01_technical_design.md](01_technical_design.md) and [05_electronics_circuit.md](05_electronics_circuit.md#6-battery-budget).
+3. **6-month battery target** — The hard constraint. Achievable only with the MCU asleep, the resistor-ladder rail gated off during sleep, and minimal board-level standby. Sleep current must be measured on the bench (stock Pico board is ~1.3 mA, not the ~1–2 mA die figure) before the cell can be sized and the target confirmed. See [01_technical_design_overview.md](01_technical_design_overview.md) and [05_electronics_circuit.md](05_electronics_circuit.md#6-battery-budget).
 
 Resolved: Mode = 4 positions (Fan/Cool/Heat/Dry, no OFF). IR protocol = `IRDaikinAC` / DAIKIN base variant. Feedback = single TX LED only (WS2812B chain dropped).

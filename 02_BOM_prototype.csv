@@ -5,17 +5,17 @@ IR Transmission	IR LED 940 nm	TSAL6400 or TSAL6200	2	0.20–0.50 each	Buy 2: one
 IR Transmission	NPN transistor	2N2222A (TO-92) or S8050	3	0.10–0.20 each	IR LED driver, ~100 mA peak. Buy a few spares.	No
 IR Transmission	Resistor 100 Ω (LED current limit)	Through-hole 1/4W	5	0.05 each	For IR LED drive circuit. Buy a strip.	No
 IR Reception (dev only)	IR receiver	TSOP38238	1	1–2	Capture original remote signals during development. Not in final device.	No
-Rotary selector — Mode	4-position 2P rotary switch	8404-3C on hand (3P4T, 2 poles used) OR RS1010 2P4T	1	0–6	4 positions: Fan/Cool/Heat/Dry (no OFF — power is on the fan knob). Must be 2P (ladder + alternating-contact wake). 8404-3C on hand has spare 3rd pole.	No — 4 modes (per specs §4.1)
-Rotary selector — Fan	6-position 2P rotary switch	Alpha SR1712F 2P8T bridged to 6 pos	1	3–6	6 positions: OFF + speeds 1–5. Auto not exposed. Must be 2P (ladder + alternating-contact wake).	No — 6 positions (OFF+1–5)
-Rotary selector — Temperature	11-position 2P rotary switch	Alpha SR1610 2P12T bridged to 11 pos	1	5–9	Covers 16–26 °C exactly. 16 mm body. Must be 2P (ladder + alternating-contact wake). Fits 80×100 mm with three knobs? TBD. Fallback: 10-pos = 16–25 °C.	YES — fits enclosure?
-Resistors — ladder	Resistor network for analog readout	10 kΩ through-hole 1/4W (×15)	15	0.05 each	Resistor ladder for rotary selectors on analog pin. Buy a strip of each value.	No
+Rotary selector — Mode	4-position 1P rotary switch	8404-3C on hand OR RS1010 1P	1	0–6	4 positions: Fan/Cool/Heat/Dry. 1P, diode-encoded (2 code lines). 8404-3C on hand; spare poles unused.	No — chosen on feel
+Rotary selector — Fan	6-position 1P rotary switch	Alpha SR1712F 1P8T bridged to 6 pos	1	3–6	6 positions: OFF + speeds 1–5. 1P, diode-encoded (3 code lines).	No — chosen on feel
+Rotary selector — Temperature	11-position 1P rotary switch (big body)	Alpha SR1610 1P12T / Lorlin CK1032 1P / Grayhill 56 1P12T, bridged to 11	1	3–7	Chosen on detent feel & size. 1P, diode-encoded (4 code lines). Covers 16–26 °C; fallback 10-pos = 16–25 °C.	YES — pick on feel/fit
+Diodes — switch encoding	Small-signal diode	1N4148 (THT) or BAV99/BAV70 (SOT-23) — loose, no dedicated array part	40	0.01 each	Diode-encode all three 1P switches into binary codes (Approach D); code lines double as both-edge wake interrupts. ~19 for Temp + fewer for Fan/Mode. Buy a strip.	No
 LEDs — TX indicator	Simple LED 3 mm red or green	Any standard 3 mm LED	2	0.10 each	Blinks on IR send. Direct GPIO drive (no transistor needed at indicator current).	No
 Resistor — LED current limit	Resistor 330 Ω	Through-hole 1/4W	5	0.05 each	For simple TX LED current limit.	No
 Push buttons	Momentary tactile switch	6×6 mm PCB tactile switch (e.g. TS-A series)	6	0.10–0.30 each	4 buttons (PWR/ECO/SWING/RESEND). Buy a few extras.	No
 Decoupling capacitors	100 nF ceramic capacitor	0.1 µF 50 V through-hole or SMD	10	0.05 each	Power supply decoupling on MCU.	No
 Power — battery	Li-Po battery	3.7 V, 1000–2000 mAh, single cell	1	5–12	Size TBD once enclosure layout is known. 1000 mAh = weeks at ~1 mA average.	YES — size after enclosure
 Power — charging module	TP4056 USB-C charging module	TP4056 with protection circuit (DW01A + FS8205)	1	0.80–2	Buy the version with protection IC (over-discharge, over-current). USB-C preferred.	No
-Power — 3.3 V rail (gated)	3.3 V LDO + high-side switch / GPIO gate	MCP1700-3302E or HT7333; P-MOSFET (e.g. AO3401) or load switch	1 set	0.40–1.20	Ladder rail must be switchable OFF during sleep to save ~90 µA. Pico onboard 3.3 V cannot be gated, so a separate gated rail (or load switch) feeds the ladders. See battery budget.	YES — gated rail design
+Resistors — pull-down	Code-line pull-downs	220 kΩ–1 MΩ through-hole 1/4W	12	0.05 each	Weak pull-downs on the switch code lines (keeps sleep leakage to a few µA; high-Z GPIO tolerate weak values). ~9 needed + spares. No gated rail / LDO required.	Bench-pick value
 Power — low battery indicator	LED + voltage divider resistors	Simple LED + 2× resistor divider	1 set	0.20	Nice-to-have. Monitor battery via MCU ADC, drive LED when below threshold.	Nice to have
 Prototyping	Breadboard	400-point or 830-point half/full size	1	2–5	For initial wiring before PCB or perfboard.	No
 Prototyping	Jumper wires	Male-male + male-female assortment	1 set	3–5	Dupont wire assortment.	No
