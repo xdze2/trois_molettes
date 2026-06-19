@@ -1,0 +1,3 @@
+[submodule "ir_mock/IRremoteESP8266"]
+	path = ir_mock/IRremoteESP8266
+	url = https://github.com/crankyoldgit/IRremoteESP8266
