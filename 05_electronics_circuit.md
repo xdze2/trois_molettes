@@ -142,6 +142,8 @@ wiper = +3.3 V (gated)
 
 Same pattern for Fan (3 lines) and Mode (2 lines) on their own GPIO. Diodes prevent bus-tied contacts from shorting positions together; count = total set-bits across the used codes (~19 for Temp codes 0–10, fewer for the smaller switches).
 
+![RS1010 diode encoding wiring](images/circuit/rs1010_wiring_2.png)
+
 - **Parts:** loose small-signal diodes — **1N4148** (THT) or **BAV99/BAV70** (SOT-23, 2 per package). There is *no* dedicated "diode encoder" product (searching "diode array" returns photodiode/ESD parts); a coded switch [§3.4](#34-option-c--off-the-shelf-coded-rotary-switch-considered) *is* the integrated version of exactly this. So it's hand-wired loose diodes — which lays out cleanly on perfboard: one rail per code line, diodes from contacts to rails.
 - **Position** = read each switch's GPIO group as a small nibble. Works on **any 1P switch** — Alpha SR1610 1P, Lorlin CK1032 1P, Grayhill 56 1P12T — chosen on body size and detent feel.
 - **No shared bus.** Each switch on its own lines avoids the superposition problem — three switches sharing one bus would OR their codes together and become unreadable without scanning, and scanning needs the MCU awake (no help for wake). Independent lines keep both readout and wake trivial. (A shared scanned matrix only pays off at many more switches than three.)
