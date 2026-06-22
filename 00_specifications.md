@@ -33,44 +33,67 @@ Implications:
 
 Controls are ordered by frequency of use.
 
-### 4.1 Primary controls
+### 4.1 Fan speed — 8-position rotary (SR16, daily use)
 
-| # | Function | Range | Control type | Frequency of change |
-|---|---|---|---|---|
-| 1 | Power + Fan speed | OFF / 1 / 2 / 3 / 4 / 5 | Rotary selector, 6 positions | Daily |
-| 2 | Mode | Fan / Cool / Heat / Dry | Rotary selector, 4 positions | Seasonal (every few months) |
-| 3 | Target temperature | 16–26 °C | Rotary selector, 11 positions (1 °C steps) | Infrequent (per room setting) |
+| Position | Meaning |
+|---|---|
+| 0 | Off |
+| 1–5 | Fan speed 1–5 |
+| 6 | Quiet |
+| 7 | Auto |
 
-Fan speed position 0 is OFF. This makes the fan knob the primary on/off control — the one touched every day.
+Fan position 0 is Off. This makes the fan knob the primary on/off control — the one touched every day.
 
-Mode is set seasonally and does not include OFF (power is handled by the fan knob).
+### 4.2 Mode — 5-position rotary (RS1010)
 
-### 4.2 Secondary modes (push buttons)
+| Position | Mode |
+|---|---|
+| 0 | Fan |
+| 1 | Cool |
+| 2 | Heat |
+| 3 | Dry |
+| 4 | Auto |
 
-| Function |
-|---|
-| Powerful |
-| Econo |
-| Swing |
+### 4.3 Temperature — 8-position rotary (SR16), mode-dependent mapping
 
-Support for these depends on what the FTXM20N2V1B actually accepts via IR — to be confirmed.
+One 8-position switch covers both heating and cooling ranges via a mode-dependent offset
+applied in firmware:
 
-### 4.3 Resend
+| Position | Cooling (Cool/Fan/Dry/Auto) | Heating (Heat) |
+|---|---|---|
+| 0 | 20 °C | 14 °C |
+| 1 | 22 °C | 16 °C |
+| 2 | 24 °C | 18 °C |
+| 3 | 26 °C | 20 °C |
+| 4 | 28 °C | 22 °C |
+| 5 | 30 °C | 24 °C |
+| 6 | 32 °C | 26 °C |
+| 7 | 34 °C | 28 °C |
 
-A dedicated action (button press or knob push) retransmits the full current state via IR. Handles missed commands without changing any setting.
+2 °C steps throughout. The mode knob position determines which mapping is active —
+the physical temp knob position is unambiguous, the firmware applies the correct range.
 
-### 4.4 Timer / scheduling — out of scope
+**Alternative considered:** two RS1010 switches (5×5 = 25 positions) for finer
+resolution. Rejected: doubles the switch count, complicates the panel layout, and
+2 °C steps cover the practical daily-use range adequately.
 
-Daily scheduling (wake/sleep timer) is explicitly out of scope. Spring-wound mechanical timers are not available in a form factor compatible with the <30 mm depth constraint, and the IR protocol timer interface requires a clock and display. Scheduling is better handled externally via the BRP069B41 WiFi adapter and home automation.
+### 4.4 Send — 1 push button
+
+Transmits the full current state via IR. No setting changes. Pressing Send is the
+only action that causes the AC unit to respond.
+
+### 4.5 Swing — 1 toggle (optional)
+
+On/off toggle for louvre swing. Nice to have; included if panel space allows.
+Support depends on what the FTXM20N2V1B accepts via IR — to be confirmed.
 
 ## 5. Feedback
 
-The only feedback mechanism is a single LED (or minimal LEDs):
+The only feedback mechanism is a single LED:
 
-1. **Battery not dead** — confirms the device is powered.
-2. **IR transmission** — brief flash when a signal is sent.
+1. **IR transmission** — brief flash when a signal is sent.
 
-No LED matrix, no mode indicators, no temperature bar. The knob positions are the feedback. This keeps the design simple and power consumption low.
+No mode indicators, no temperature bar. The knob positions are the feedback.
 
 ## 6. Power
 
@@ -79,7 +102,7 @@ No LED matrix, no mode indicators, no temperature bar. The knob positions are th
 - USB charging port on the enclosure.
 - Low-battery indicator is desirable (nice to have).
 
-Battery life is a hard constraint that drives microcontroller selection, LED count, and sleep strategy.
+Battery life is a hard constraint that drives microcontroller selection and sleep strategy.
 
 ## 7. Physical Form
 
@@ -101,8 +124,9 @@ Battery life is a hard constraint that drives microcontroller selection, LED cou
 
 ## 9. Open Questions
 
-1. **Secondary modes support** — Confirm which of Powerful / Econo / Swing the FTXM20N2V1B accepts via IR.
-2. **Temperature control resolution** — Confirm 11-position selector fits the enclosure layout alongside the other two knobs (fallback: 10-position, 16–25 °C).
-3. **6-month battery target** — The hard constraint. Since the MCU sleeps ~100 % of the time, sleep current ≈ average current ≈ the whole budget. This (with the ~13-pin both-edge wake the readout needs, and a perfboard/dev-board-only build rule) drove the MCU choice away from the RP2040/ESP32 — see [03_microcontroller_choice.md](03_microcontroller_choice.md). The preferred nRF52840 (XIAO) board sleeps at ~1.5–2.4 µA, but the figure must still be measured on the bench before the cell is sized and the target confirmed. See [01_technical_design_overview.md](01_technical_design_overview.md) and [05_electronics_circuit.md](05_electronics_circuit.md#6-battery-budget).
+1. **Swing support** — Confirm the FTXM20N2V1B accepts swing toggle via IR.
+2. **Temperature mapping validation** — Confirm the Daikin IR protocol accepts 2 °C step targets across both ranges (14–28 °C heating, 20–34 °C cooling).
+3. **6-month battery target** — Hard constraint. Sleep current ≈ average current. Must be measured on bench before cell is sized. See [07_battery_and_power.md](07_battery_and_power.md).
+4. **Panel layout** — Confirm two SR16 + one RS1010 + Send button (+ optional swing toggle) fit the 80×100 mm face.
 
-Resolved: Mode = 4 positions (Fan/Cool/Heat/Dry, no OFF). IR protocol = DAIKIN base variant (`IRDaikinAC` as reference; transmit may be ported). MCU = nRF52840 (XIAO) preferred, pending bench validation. Feedback = single TX LED only (WS2812B chain dropped).
+Resolved: MCU = ATmega328P (Pro Mini 3.3 V), on hand, sufficient for this design. Readout = diode encoding on 1P switches. Feedback = single TX LED.

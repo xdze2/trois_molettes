@@ -1,9 +1,14 @@
 # RS1010 Readout — Wiring Test & Debounce
 
-Bench notes from testing the diode-encoded RS1010 rotary switch readout
-described in [05_electronics_circuit.md §3.5](../05_electronics_circuit.md).
+Bench notes from testing the diode-encoded RS1010 rotary switch readout.
+See [05_electronics_circuit.md](../05_electronics_circuit.md) for the full design rationale
+(§3.5 diode encoding, §5 power / pull-down budget, §6 battery budget, §7 debounce, §8 bench plan).
+
+![Bench setup](../images/photos/PXL_20260622_125033774_web.jpg)
 
 ## Wiring under test
+
+![RS1010 diode encoding wiring](../images/circuit/rs1010_wiring_2.png)
 
 Per §3.5 / §5 of the circuit doc:
 
@@ -88,6 +93,18 @@ and goes back to sleep.
 - `LED_BUILTIN` is D13 = PB5 = **PCINT5** in the same PCI group. The PCMSK0
   mask above excludes it, so driving the awake-indicator LED doesn't
   spuriously wake the MCU.
+
+## Open design questions / next to validate
+
+- **4-line / 11-position coverage.** Only 3 code lines tested so far. The temperature
+  switch needs a 4th; add D9 (PB1 / PCINT1), extend the PCMSK0 mask, and confirm
+  debounce still holds across all 11 positions.
+
+- **Pull-down value vs. leakage.** 1 MΩ was chosen to keep sleep leakage in the µA
+  range (§6). This bench used an ATmega328PB whose sleep floor is much higher, so the
+  pull-down value hasn't been stress-tested against the budget. On the final target MCU
+  (nRF52840, ~2 µA floor) the ~3.3 µA/line leakage becomes the dominant term — validate
+  that 1 MΩ gives reliable reads before treating it as settled.
 
 ## Sketches
 
