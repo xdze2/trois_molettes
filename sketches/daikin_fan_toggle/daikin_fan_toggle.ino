@@ -149,5 +149,5 @@ void loop() {
     delay(400);                  // hold LED on long enough to see
     digitalWrite(LED_BUILTIN, LOW);
 
-    delay(10000);
+    delay(5000);
 }
