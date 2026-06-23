@@ -1,4 +1,4 @@
-// IR LED wiring test — ATmega328PB at 4 MHz effective (CKDIV8 fuse active)
+// IR modulation test — ATmega328PB at 4 MHz effective (CKDIV8 fuse active)
 //
 // Sends a ~475 µs burst at 38 kHz every second so you can verify:
 //   CH1: TSOP38238 OUT pin → active-low dip during burst
