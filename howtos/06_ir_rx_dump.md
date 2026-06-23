@@ -40,6 +40,12 @@ Serial at **115200 baud**.  `setup()` clears the AVR clock prescaler at runtime
 (`CLKPR = 0`) so the chip always runs at its nominal 8 MHz regardless of the
 CKDIV8 fuse state.
 
+## Arduino IDE settings
+
+Board: **Arduino Pro or Pro Mini**, Processor: **ATmega328P (3.3V, 8 MHz)**.
+
+![Arduino IDE board settings](images/arduino_ide_settings.png)
+
 ## Wiring
 
 Same TSOP38238 already used for oscilloscope work in `04_ir_receiver_signal`:
