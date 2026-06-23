@@ -12,7 +12,7 @@
 
 // One 38 kHz carrier cycle: ~26 µs total at 4 MHz effective.
 // We request 6 µs per half-period (executes as ~13 µs at actual 4 MHz).
-#define HALF_PERIOD_US 6
+#define HALF_PERIOD_US 4 // measured freq is approx 36kHz
 
 // 475 µs burst = ~18 carrier cycles at 38 kHz
 #define BURST_CYCLES 18
