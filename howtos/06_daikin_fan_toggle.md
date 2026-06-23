@@ -17,8 +17,7 @@ Fixed AC state: Power ON, Mode Cool, Temp 22 °C.  Fan alternates:
 | odd  | MIN (1)   |
 | even | MAX (5)   |
 
-Serial output at 2400 baud (sketch requests 4800; CKDIV8 halves it — see
-[02_serial_debug.md](02_serial_debug.md)).
+Serial output at 4800 baud.
 
 ## How it works
 
@@ -52,22 +51,43 @@ Timing constants (from `ir_Daikin.h`):
 
 ### Carrier generation — Timer2 CTC
 
-Timer2 in CTC mode toggles OC2B (D3) at the compare match.  With the chip at
-4 MHz effective (CKDIV8) and prescaler /1:
+Timer2 in CTC mode toggles OC2B (D3) at the compare match.  With F_CPU = 8 MHz
+and prescaler /1:
 
 ```
-f = 4 000 000 / (2 × (OCR2A + 1)) = 4 000 000 / (2 × 53) ≈ 37.7 kHz
+f = 8 000 000 / (2 × (OCR2A + 1)) = 8 000 000 / (2 × 105) ≈ 38.1 kHz
 ```
 
-OCR2A = 52 is set once in `setup()`.  `ir_mark()` reconnects the OC2B toggle;
+`OCR2A = 104` is set once in `setup()`.  `ir_mark()` reconnects the OC2B toggle;
 `ir_space()` disconnects it and holds the pin LOW.
 
-### CKDIV8 timing correction
+### Clock note — the CKDIV8 misdiagnosis
 
-The IDE compiles for 8 MHz but the chip runs at 4 MHz, so
-`delayMicroseconds(N)` executes as approximately `2 N µs`.  Every duration
-passed to `delayMicroseconds()` inside `ir_mark()` / `ir_space()` is therefore
-halved: `delayMicroseconds(us / 2)`.
+Earlier sketches in this repo (and earlier revisions of this one) assumed the
+CKDIV8 fuse was active, dividing the 8 MHz internal RC clock down to 4 MHz.
+The compensations included:
+
+- `delayMicroseconds(us / 2)` everywhere (to undo a supposed 2× slowdown)
+- `Serial.begin(4800)` with the monitor at 2400 baud (same idea)
+- `OCR2A` values computed against a 4 MHz F_CPU
+
+A scope measurement of the carrier disproved all of this:
+
+| OCR2A | Predicted (4 MHz) | Predicted (8 MHz) | Measured |
+|-------|-------------------|-------------------|----------|
+| 52    | 37.7 kHz          | 75.5 kHz          | —        |
+| 58    | 33.9 kHz          | 66.7 kHz          | **66.7 kHz** (15 µs period) |
+
+The 8 MHz column matched exactly — so CKDIV8 is **not** active on this board.
+All four corrections were undone:
+
+- `delayMicroseconds(us)` — pass the protocol value as-is
+- `Serial.begin(4800)` — monitor at 4800 baud
+- `OCR2A = 104` — gives 38.1 kHz at 8 MHz
+
+**Lesson for the other sketches:** any of `ir_modulation_test`, `serial_test`,
+etc. that assume CKDIV8 will be running 2× too fast.  Re-measure before
+trusting their timing.
 
 ## Expected result
 
@@ -86,6 +106,6 @@ Sending fan=MAX (5)
 | Symptom | Likely cause |
 |---------|-------------|
 | AC does not respond at all | LED not pointing at AC receiver; check alignment and reduce distance |
-| AC responds to some frames but not others | Carrier frequency off — try OCR2A = 51 or 53 |
-| Garbled serial output | Wrong baud rate in monitor — use 2400 |
+| AC responds to some frames but not others | Carrier frequency off — measure on a scope and tweak OCR2A (±1 ≈ ±0.6 kHz) |
+| Garbled serial output | Wrong baud rate in monitor — use 4800 |
 | Sketch won't compile, missing `daikin_frame.h` | The sketch dir contains symlinks to `../../firmware/daikin_frame.{h,cpp}` — make sure they survived a checkout (Windows clones drop symlinks by default) |

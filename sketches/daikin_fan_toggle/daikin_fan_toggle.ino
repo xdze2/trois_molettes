@@ -1,13 +1,13 @@
-// Daikin fan-speed toggle — ATmega328PB at 4 MHz effective (CKDIV8 fuse active)
+// Daikin fan-speed toggle — ATmega328PB at 8 MHz
 //
 // Sends a real Daikin frame every 30 s, alternating fan speed between
 // DAIKIN_FAN_1 (min) and DAIKIN_FAN_5 (max).  Power=ON, Mode=Cool, Temp=22°C.
 //
-// CKDIV8 note: IDE compiles for F_CPU=8000000 but chip runs at 4 MHz.
-// delayMicroseconds(N) executes as ~2 N µs.  Every timing constant passed to
-// mark()/space() is therefore halved before the call.
+// Clock note: measured 66.7 kHz carrier with OCR2A=58 confirms the chip runs at
+// the nominal 8 MHz (CKDIV8 fuse is NOT active), so delayMicroseconds() and
+// Serial baud rate work as specified — no scaling needed.
 //
-// Serial output at 2400 baud (sketch requests 4800; CKDIV8 halves the baud rate).
+// Serial output at 4800 baud.
 //
 // Wiring: IR LED circuit on D3 (OC2B), same as ir_modulation_test.
 
@@ -35,17 +35,14 @@
 // ---------------------------------------------------------------------------
 // Timer2 — 38 kHz carrier on OC2B (D3)
 //
-// F_CPU effective = 4 MHz (CKDIV8 fuse), prescaler /1.
-// OCR2A = 52 → toggle period = 2 * (52+1) / 4e6 ≈ 26.5 µs → ~37.7 kHz.
-// (The ir_modulation_test sketch used OCR2A not set explicitly — CTC mode with
-//  HALF_PERIOD_US loops.  Here we use the hardware toggle so delayMicroseconds
-//  controls only the burst duration, not the frequency.)
+// F_CPU = 8 MHz, prescaler /1.
+// OCR2A = 104 → toggle period = 2 * (104+1) / 8e6 = 26.25 µs → ~38.1 kHz.
 // ---------------------------------------------------------------------------
 static void timer2_38khz_start() {
     // CTC mode, toggle OC2B on compare match, prescaler /1
     TCCR2A = (1 << COM2B0) | (1 << WGM21);
     TCCR2B = (1 << CS20);
-    OCR2A  = 52;   // ~37.7 kHz at 4 MHz effective
+    OCR2A  = 104;  // ~38.1 kHz at F_CPU = 8 MHz
     TCNT2  = 0;
     pinMode(IR_PIN, OUTPUT);
 }
@@ -57,20 +54,17 @@ static void timer2_stop() {
 }
 
 // ---------------------------------------------------------------------------
-// mark / space
-//
-// All durations are in µs (protocol values).  We pass us/2 to
-// delayMicroseconds() because CKDIV8 makes it run 2× slower.
+// mark / space — all durations are in µs (protocol values).
 // ---------------------------------------------------------------------------
 static void ir_mark(uint16_t us) {
     TCCR2A |= (1 << COM2B0);    // enable OC2B toggle → carrier on
-    delayMicroseconds(us / 2);
+    delayMicroseconds(us);
 }
 
 static void ir_space(uint16_t us) {
     TCCR2A &= ~(1 << COM2B0);   // disconnect OC2B → pin stays LOW
     digitalWrite(IR_PIN, LOW);
-    delayMicroseconds(us / 2);
+    delayMicroseconds(us);
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +119,9 @@ static void send_daikin(const uint8_t frame[DAIKIN_FRAME_LEN]) {
 // Arduino entry points
 // ---------------------------------------------------------------------------
 void setup() {
-    Serial.begin(4800);   // actual baud = 2400 (CKDIV8)
+    Serial.begin(4800);
     timer2_38khz_start();
+    pinMode(LED_BUILTIN, OUTPUT);
     Serial.println("Daikin fan toggle — MIN/MAX every 30 s");
 }
 
@@ -149,7 +144,10 @@ void loop() {
     Serial.print("Sending fan=");
     Serial.println(fan_max ? "MAX (5)" : "MIN (1)");
 
-    send_daikin(frame);
+    digitalWrite(LED_BUILTIN, HIGH);
+    send_daikin(frame);          // ~120 ms of IR transmission
+    delay(400);                  // hold LED on long enough to see
+    digitalWrite(LED_BUILTIN, LOW);
 
-    delay(5000);
+    delay(10000);
 }
