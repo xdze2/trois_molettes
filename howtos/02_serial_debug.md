@@ -25,7 +25,7 @@ Probing the TX pin (Arduino pin 1) while sending `0x55` at `Serial.begin(9600)`:
 - Expected bit period at 9600 baud, 8 MHz: **104 µs**
 - Measured: **~200 µs** → actual baud rate ~5000, consistent with 4 MHz clock
 
-Use [tools/serial_test/serial_test.ino](../tools/serial_test/serial_test.ino) to reproduce
+Use [sketches/serial_test/serial_test.ino](../sketches/serial_test/serial_test.ino) to reproduce
 this measurement. Set `BAUD_RATE 9600`, probe TX, measure the shortest pulse width.
 
 ## Opening the serial port on macOS

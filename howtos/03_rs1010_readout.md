@@ -108,9 +108,9 @@ and goes back to sleep.
 
 ## Sketches
 
-- [tools/rs1010_poll_test/rs1010_poll_test.ino](../tools/rs1010_poll_test/rs1010_poll_test.ino)
+- [sketches/rs1010_poll_test/rs1010_poll_test.ino](../sketches/rs1010_poll_test/rs1010_poll_test.ino)
   — simple polling loop with debounce, no sleep. Use this first to confirm
   wiring and code mapping.
-- [tools/rs1010_wiring_test/rs1010_wiring_test.ino](../tools/rs1010_wiring_test/rs1010_wiring_test.ino)
+- [sketches/rs1010_wiring_test/rs1010_wiring_test.ino](../sketches/rs1010_wiring_test/rs1010_wiring_test.ino)
   — same debounce + `SLEEP_MODE_PWR_DOWN` + PCINT wake. LED_BUILTIN is HIGH
   while awake, LOW while sleeping (visual confirmation of the wake path).
