@@ -13,9 +13,9 @@
 
 #include <avr/io.h>
 
-// Pull in the portable frame builder (path relative to sketch dir)
-#include "../../firmware/daikin_frame.h"
-#include "../../firmware/daikin_frame.cpp"
+// Portable frame builder.  The .h / .cpp files in this sketch dir are symlinks
+// to ../../firmware/ — Arduino IDE only compiles files inside the sketch folder.
+#include "daikin_frame.h"
 
 // ---------------------------------------------------------------------------
 // Hardware
@@ -151,5 +151,5 @@ void loop() {
 
     send_daikin(frame);
 
-    delay(30000);
+    delay(5000);
 }

@@ -88,4 +88,4 @@ Sending fan=MAX (5)
 | AC does not respond at all | LED not pointing at AC receiver; check alignment and reduce distance |
 | AC responds to some frames but not others | Carrier frequency off — try OCR2A = 51 or 53 |
 | Garbled serial output | Wrong baud rate in monitor — use 2400 |
-| Sketch won't compile | Arduino IDE cannot resolve the `../../firmware/` include path — open the sketch from the repo root or add `firmware/` to the IDE library path |
+| Sketch won't compile, missing `daikin_frame.h` | The sketch dir contains symlinks to `../../firmware/daikin_frame.{h,cpp}` — make sure they survived a checkout (Windows clones drop symlinks by default) |
