@@ -38,23 +38,41 @@
 #define FRAME_GAP 60000   // us: silence longer than this means the frame is done
 #define BAUD 115200
 
-#define BUF_LEN 256 // ring buffer: 1 uint32 per edge (~200 needed/frame)
+#define BUF_LEN 768 // ring buffer: 1 uint16 delta per edge.
+// One Daikin frame ≈ 320 edges, but a single button press emits frame+repeat
+// (~700 edges total) before the inter-press silence. 768 × 2 B = 1536 B SRAM;
+// leaves ~500 B for Serial buffers, stack, and globals on the 2 KB ATmega328P.
 
 // ── Shared between the ISR and loop() ────────────────────────────────────────
 // `volatile` tells the compiler these can change behind its back (inside the
 // ISR), so it must re-read them from memory instead of caching in a register.
-volatile uint32_t edges[BUF_LEN]; // micros() timestamp of each edge
+volatile uint16_t edges[BUF_LEN]; // µs duration of each interval (delta, not absolute)
 volatile uint16_t edge_count = 0; // how many edges captured so far
 volatile bool buf_overflow = false;
+volatile uint32_t last_edge_time = 0; // absolute micros() of the last edge, for frame-end detection
+volatile uint32_t isr_prev = 0;       // previous edge timestamp, reset between frames
+volatile bool first_interval_is_mark = true; // edges[1] is a mark when the pin is HIGH at end of ISR2
 
 // ── ISR: fires on every CHANGE (rising OR falling) of any pin in PCINT2 group ─
 // D2 is PD2, which lives in the PCINT2 group (PCINT16..23 = PORTD).
-// We keep this as short as humanly possible: one micros() read, one store.
+// We store deltas (uint16_t) rather than absolute timestamps (uint32_t) so
+// 512 entries fit in ~1 KB instead of 2 KB, leaving room for stack/heap.
+// Each interval is at most ~35 ms = 35000 µs, well within uint16_t range.
+// edges[0] is the time since the ISR was armed (discarded in decode).
 ISR(PCINT2_vect)
 {
+    uint32_t now = micros();
+    last_edge_time = now;
     if (edge_count < BUF_LEN)
     {
-        edges[edge_count++] = micros();
+        uint16_t idx = edge_count++;
+        edges[idx] = (uint16_t)(now - isr_prev);
+        isr_prev = now;
+        if (idx == 1) // first real interval: record whether it's a mark or space.
+            // The ISR fires AFTER the edge, so PIND reflects the level during
+            // the NEXT interval. If pin is HIGH now, edges[1] was a mark
+            // (carrier just stopped); if LOW, edges[1] was a space.
+            first_interval_is_mark = (PIND & (1 << PD2));
     }
     else
     {
@@ -71,6 +89,7 @@ void setup()
 
     // Enable pin-change interrupt on D2 (PD2 / PCINT18).
     PCICR |= (1 << PCIE2);    // turn on the PCINT2 group (PORTD)
+    PCIFR |= (1 << PCIF2);    // clear any stale pending flag (write-1-to-clear)
     PCMSK2 |= (1 << PCINT18); // ...but only watch PD2 within that group
     sei();                    // global interrupt enable
 
@@ -85,31 +104,21 @@ void setup()
 // interval is a MARK (carrier present, pin LOW) or a SPACE (silence, pin HIGH).
 // Because the TSOP idles HIGH, the very first edge is HIGH→LOW: the interval
 // AFTER it is a mark. So intervals alternate mark, space, mark, space, ...
-static void decodeFrame(uint16_t n, bool is_buf_overflow)
+static void decodeFrame(uint16_t n, bool is_buf_overflow, bool first_is_mark)
 {
-    // We have n timestamps → n-1 intervals between them.
-    // interval i = edges[i+1] - edges[i]
-    // i even  → mark   (pin was LOW during this interval)
-    // i odd   → space  (pin was HIGH during this interval)
-
-    // ── YOUR EXERCISE STARTS HERE ──────────────────────────────────────────
-    //
-    // TODO 1: Loop over the intervals (i from 0 to n-2). Compute `dur` for each.
-    for (uint16_t i = 0; i + 1 < n; i++)
+    // edges[] holds deltas: edges[0] is time-since-arm (junk), skip it.
+    // edges[1] is the first real interval; whether it's a mark depends on which
+    // edge triggered first (normally falling = mark, but not guaranteed).
+    for (uint16_t i = 1; i < n; i++)
     {
-        uint32_t duration = edges[i + 1] - edges[i];
-        // TODO 2: Classify each interval:
-        //         - i even  → it's a mark  → print  "M <dur>"
-        //         - i odd   → it's a space → decide what to print based on size:
-        //             * dur >= FRAME_GAP   → print "==="   and stop
-        //             * dur >= SECTION_GAP → print "--- <dur>"  (inter-section gap)
-        //             * otherwise          → print "S <dur>"
-        if (i % 2 == 0)
+        uint32_t duration = edges[i];
+        bool is_mark = ((i % 2 == 1) == first_is_mark); // honour actual phase
+        if (is_mark)
         {
             Serial.print("M ");
             Serial.println(duration);
         }
-        else
+        else // space
         {
             if (duration >= FRAME_GAP)
             {
@@ -132,17 +141,6 @@ static void decodeFrame(uint16_t n, bool is_buf_overflow)
     {
         Serial.println("buf_overflow");
     }
-    //
-    // TODO 3 (stretch): track section boundaries and print "SECTION n"
-    //         headers + the "LEADER / gap" lines like the example output.
-    //         You can do this in a second pass once the basic M/S dump works.
-    //
-    // Hint: keep it simple first — just get clean alternating "M ..." / "S ..."
-    //       lines printing. Add SECTION/LEADER labelling only once that works.
-    //
-    // (write your loop here)
-
-    // ── YOUR EXERCISE ENDS HERE ────────────────────────────────────────────
 }
 
 void loop()
@@ -152,22 +150,38 @@ void loop()
     if (edge_count == 0)
         return;
 
-    // Snapshot edge_count, wait, see if it grew. If it stopped growing past
-    // FRAME_GAP since the last edge, the frame is complete.
-    uint16_t count_now = edge_count;
-    uint32_t last_edge = edges[count_now - 1];
+    // Snapshot edge_count and last_edge_time atomically. Both are multi-byte
+    // volatiles written by the ISR; a non-atomic read can tear, so wrap in cli/sei.
+    uint16_t count_now;
+    uint32_t last_edge_snapshot;
+    uint8_t sreg = SREG;
+    cli();
+    count_now = edge_count;
+    last_edge_snapshot = last_edge_time;
+    SREG = sreg;
 
-    if (!buf_overflow && (micros() - last_edge) < FRAME_GAP)
-        return; // still receiving, come back later
+    // Always wait for true silence (FRAME_GAP since last edge) before decoding,
+    // even on buffer overflow. Re-arming the ISR mid-frame guarantees corrupt
+    // continuation: decodeFrame() prints ~512 lines @ 115200 baud (~50 ms)
+    // while the ISR is disabled, so many edges are lost. The next edge then
+    // resyncs `first_interval_is_mark` to the wrong phase, producing M-M / S-S
+    // adjacencies in the output. Better to truncate at BUF_LEN and wait out
+    // the rest of the press; the ISR keeps updating `last_edge_time` so the
+    // gap is still detected correctly.
+    if ((micros() - last_edge_snapshot) < FRAME_GAP)
+        return; // still receiving (possibly past buffer end) — come back later
 
     // Frame is done. Freeze the buffer: disable the ISR so nothing mutates
     // `edges`/`edge_count` while we decode and print (printing is slow).
     PCMSK2 &= ~(1 << PCINT18);
 
-    decodeFrame(count_now, buf_overflow);
+    decodeFrame(count_now, buf_overflow, first_interval_is_mark);
+    Serial.println("==="); // inter-press silence ended the frame (not in buffer)
 
     // Reset for the next button press and re-arm the interrupt.
     edge_count = 0;
     buf_overflow = false;
+    isr_prev = micros(); // anchor delta timing to now so edges[0] is not stale
+    PCIFR |= (1 << PCIF2); // discard any edge that arrived while ISR was disabled
     PCMSK2 |= (1 << PCINT18);
 }
