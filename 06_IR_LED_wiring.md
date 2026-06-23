@@ -40,22 +40,23 @@ R = (3.3V - 1.35V) / 0.1A = 19.5 Ω  → use 18 Ω or 22 Ω
 R_base = 2.2 kΩ  (GPIO at 3.3V: 3.3V / 2.2kΩ ≈ 1.5 mA into base, hFE×Ic headroom fine)
 ```
 
-**Transistor:** BC337 (Ic_max 800 mA, TO-92) — well within ratings.
+**Transistor:** S9013 H331 (Ic_max 500 mA, TO-92) — well within ratings.
 
-```mermaid
-graph TD
-    GPIO["ATmega328P GPIO\n(IR_TX pin, 3.3V)"]
-    Rb["R_base\n2.2 kΩ"]
-    Q["NPN transistor\nBC337"]
-    Rs["R_series\n18–22 Ω"]
-    LED["TSAL6200\nIR LED"]
-    VCC["3.3V"]
-    GND["GND"]
+![Single LED circuit](schematics/ir_led_single.png)
 
-    GPIO --> Rb --> Q
-    VCC --> Rs --> LED --> Q
-    Q --> GND
-```
+Current flows left → right: **3.3 V → 22 Ω → LED → transistor → GND**.
+
+**Package orientation (TSAL6200, 5 mm radial):**
+
+- **Anode** (long lead, round side of the package) faces the **22 Ω resistor / 3.3 V** side.
+- **Cathode** (short lead, marked by the **flat** on the package rim) faces the **transistor collector** side.
+- So the **flat faces the transistor**. Current path: 3.3 V → R → anode → cathode → collector → emitter → GND.
+
+**S9013 (NPN, TO-92, flat face forward): E – C – B** (left to right):
+
+- **Collector (C, centre)** → the **LED cathode**.
+- **Emitter (E, left)** → **GND**.
+- **Base (B, right)** → through R_base (2.2 kΩ) to the **GPIO**.
 
 Range: ~2–3 m with a single LED at 100 mA. Use the multi-LED version for 3–4 m.
 
@@ -70,34 +71,12 @@ Each LED gets its own resistor to balance current (never share a single resistor
 
 ```
 If per LED  = 100 mA
-If_total    = 3 × 100 mA = 300 mA  →  BC337 (800 mA) handles this comfortably
+If_total    = 3 × 100 mA = 300 mA  →  S9013 (500 mA) handles this comfortably
 R per LED   = (3.3V - 1.35V) / 0.1A = 19.5 Ω  → use 18 Ω or 22 Ω each
 R_base      = 2.2 kΩ
 ```
 
-```mermaid
-graph TD
-    GPIO["ATmega328P GPIO\n(IR_TX pin, 3.3V)"]
-    Rb["R_base\n2.2 kΩ"]
-    Q["NPN transistor\nBC337"]
-    VCC["3.3V"]
-    GND["GND"]
-
-    R1["R1 — 22 Ω"]
-    R2["R2 — 22 Ω"]
-    R3["R3 — 22 Ω"]
-    L1["LED1 — TSAL6200\n(center, 0°)"]
-    L2["LED2 — TSAL6200\n(left, −30°)"]
-    L3["LED3 — TSAL6200\n(right, +30°)"]
-
-    GPIO --> Rb --> Q
-
-    VCC --> R1 --> L1 --> Q
-    VCC --> R2 --> L2 --> Q
-    VCC --> R3 --> L3 --> Q
-
-    Q --> GND
-```
+![3-LED circuit with bulk cap](schematics/ir_led_3x.png)
 
 ### Angular coverage
 
@@ -138,44 +117,19 @@ and the battery recovers between marks. **100–470 µF** is the practical range
 
 Use an electrolytic, placed physically close to the collector/VCC node. Polarity matters.
 
-```mermaid
-graph TD
-    GPIO["ATmega328P GPIO\n(IR_TX pin, 3.3V)"]
-    Rb["R_base\n2.2 kΩ"]
-    Q["NPN transistor\nBC337"]
-    VCC["3.3V"]
-    GND["GND"]
-    C["C_bulk\n220 µF electrolytic"]
-
-    R1["R1 — 22 Ω"]
-    R2["R2 — 22 Ω"]
-    R3["R3 — 22 Ω"]
-    L1["LED1 — TSAL6200\n(center, 0°)"]
-    L2["LED2 — TSAL6200\n(left, −30°)"]
-    L3["LED3 — TSAL6200\n(right, +30°)"]
-
-    GPIO --> Rb --> Q
-
-    VCC --> C --> GND
-    VCC --> R1 --> L1 --> Q
-    VCC --> R2 --> L2 --> Q
-    VCC --> R3 --> L3 --> Q
-
-    Q --> GND
-```
-
 ## Component Summary
 
 | Component | Value | Notes |
 |---|---|---|
 | TSAL6200 | × 1 or × 3 | 940 nm, ±17°, 100 mA |
-| Q1 NPN | BC337 | Ic 800 mA, TO-92, ~€0.10 |
+| Q1 NPN | S9013 H331 | Ic 500 mA, hFE 144–202 (H group), TO-92, ECB pinout |
 | R_base | 2.2 kΩ | GPIO → base |
 | R_series | 22 Ω each | 100 mA per LED at 3.3 V |
 | C_bulk | 220 µF electrolytic | rail stabilisation, close to Q1 collector |
 
 ## Notes
 
+- **S9013 pinout (TO-92, flat face forward): E – C – B** (left to right). This differs from BC337 (E–B–C) — verify before soldering.
 - At 1/3 duty cycle (Daikin/NEC encoding), average current per LED is ~33 mA — well within continuous ratings.
 - The IRremote library (AVR target) handles the 38 kHz carrier via timer — no manual toggling needed.
 - For the multi-LED version, bend the outer LEDs to the target angle before soldering; a small cardboard jig helps keep angles consistent.
