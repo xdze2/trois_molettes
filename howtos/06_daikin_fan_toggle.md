@@ -89,6 +89,18 @@ All four corrections were undone:
 etc. that assume CKDIV8 will be running 2× too fast.  Re-measure before
 trusting their timing.
 
+## Oscilloscope — full frame
+
+- CH1 (scope, black clip): TSOP38238 OUT pin
+- CH2 (scope, grey clip): IR LED GPIO input (D3, base side of transistor circuit)
+
+![Scope — CH2 (top): IR GPIO; CH1 (bottom): TSOP demodulated output — full frame wide view](images/PXL_20260623_163335375_web.jpg)
+
+![Scope — CH2 (top): IR GPIO; CH1 (bottom): TSOP demodulated output — full frame detail](images/PXL_20260623_163738574_web.jpg)
+
+The oscilloscope confirms the 3-section structure: preamble burst, inter-section
+gaps (~29 ms), and the three HDR mark / data / bit-mark sequences.
+
 ## Expected result
 
 The AC unit should beep and change fan speed 30 s after each transmission.
@@ -109,3 +121,6 @@ Sending fan=MAX (5)
 | AC responds to some frames but not others | Carrier frequency off — measure on a scope and tweak OCR2A (±1 ≈ ±0.6 kHz) |
 | Garbled serial output | Wrong baud rate in monitor — use 4800 |
 | Sketch won't compile, missing `daikin_frame.h` | The sketch dir contains symlinks to `../../firmware/daikin_frame.{h,cpp}` — make sure they survived a checkout (Windows clones drop symlinks by default) |
+
+> **Status (2026-06-23):** The frame structure looks correct on the oscilloscope
+> but the real Daikin unit does not respond yet.  Investigation ongoing.
