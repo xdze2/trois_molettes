@@ -6,6 +6,37 @@ and the oscilloscope to observe both the raw carrier and the demodulated output.
 See [06_IR_LED_wiring.md](../06_IR_LED_wiring.md) for the circuit design, and
 [04_ir_receiver_signal.md](04_ir_receiver_signal.md) for the receiver wiring.
 
+## Step 0 — Sanity check with a visible LED (do this first)
+
+Before trusting *any* result from the IR + TSOP loopback below, verify the
+transistor switching with a red LED you can see with the naked eye.
+
+Sketch: [sketches/ir_led_blink/ir_led_blink.ino](../sketches/ir_led_blink/ir_led_blink.ino)
+— toggles D3 (and the onboard LED on D13) HIGH/LOW every 1 s. No carrier, no
+Timer2, just `digitalWrite()`.
+
+Swap the TSAL6200 for a red LED with a suitable series resistor (e.g. 330 Ω at
+3.3 V) in the same socket. Keep everything else identical: same transistor,
+same R_base, same GPIO.
+
+Expected:
+- Onboard LED (D13) blinks at 1 Hz.
+- Red LED blinks **in sync** with the onboard LED.
+
+If the red LED stays **always on** while D13 blinks, the transistor wiring is
+wrong — almost certainly a **pinout mix-up**. The S9013 datasheet pinout is
+**E – B – C** (centre is base), not E – C – B as some references and an earlier
+version of [06_IR_LED_wiring.md](../06_IR_LED_wiring.md) claimed. With base and
+collector swapped, current flows VCC → R → LED → base → emitter → GND through
+the B-E diode permanently, and the GPIO toggling does almost nothing visible.
+
+While the test runs, measure **V across the 22 Ω series resistor** in the LED ON
+phase. Expected ~1.6–1.7 V → I ≈ 75–80 mA through the LED. Anything in that
+range confirms the transistor is saturating and current limiting is working as
+designed.
+
+Only once this passes should you move on to the modulation test below.
+
 ## Goal
 
 Confirm that:
@@ -62,3 +93,36 @@ LED circuit fires correctly and the receiver sees the signal.
 
 The burst width on CH1 matches CH2 within one or two carrier cycles — expected,
 as the TSOP has a short internal propagation delay (~50–100 µs typical).
+
+## ⚠️ False-positive trap — this test passed with the wrong wiring
+
+This loopback test originally passed with the **transistor wired wrong** (base
+and collector swapped — see Step 0 above). It still produced a "clean
+demodulated burst" on the TSOP38238 output. Don't trust this test in isolation.
+
+What was actually happening:
+
+```
+3.3 V → 22 Ω → LED → base → emitter → GND        (always-on, ~76 mA DC)
+                          ↑
+              GPIO via 2.2 kΩ wiggling the (mis-wired) collector
+```
+
+The base-emitter junction was permanently forward-biased, so the LED sat at
+~76 mA DC. The GPIO toggling at 38 kHz injected a small current at the
+mis-wired collector pin, modulating the BE current by a few percent. Result:
+an LED emitting a strong DC IR signal with a **tiny 38 kHz ripple** on top.
+
+A TSOP38238 a few centimetres away does not care. It has automatic gain
+control, a 38 kHz bandpass filter, and is designed to detect very weak
+signals — a few percent AM modulation at point-blank range demodulates
+beautifully. The scope showed a textbook active-low burst.
+
+But against the real Daikin AC unit (~2–3 m away, behind a tinted IR window,
+weak coupling), that ~5 % modulation depth is nowhere near enough. A properly
+switched circuit cycles the LED between **off and on**, giving 100 %
+modulation depth — which is what's needed to survive real-world path loss.
+
+**Lesson:** the TSOP loopback at close range is a *necessary* check, not a
+*sufficient* one. Always pair it with the Step 0 visible-LED sanity check, and
+ideally a "does the AC actually beep" end-to-end test (howto 08).

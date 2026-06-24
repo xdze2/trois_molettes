@@ -52,11 +52,13 @@ Current flows left → right: **3.3 V → 22 Ω → LED → transistor → GND**
 - **Cathode** (short lead, marked by the **flat** on the package rim) faces the **transistor collector** side.
 - So the **flat faces the transistor**. Current path: 3.3 V → R → anode → cathode → collector → emitter → GND.
 
-**S9013 (NPN, TO-92, flat face forward): E – C – B** (left to right):
+**S9013 (NPN, TO-92, flat face forward): E – B – C** (left to right, per datasheet):
 
-- **Collector (C, centre)** → the **LED cathode**.
+![S9013 TO-92 pinout](images/transistor_ss9013.png)
+
 - **Emitter (E, left)** → **GND**.
-- **Base (B, right)** → through R_base (2.2 kΩ) to the **GPIO**.
+- **Base (B, centre)** → through R_base (2.2 kΩ) to the **GPIO**.
+- **Collector (C, right)** → the **LED cathode**.
 
 Range: ~2–3 m with a single LED at 100 mA. Use the multi-LED version for 3–4 m.
 
@@ -122,14 +124,14 @@ Use an electrolytic, placed physically close to the collector/VCC node. Polarity
 | Component | Value | Notes |
 |---|---|---|
 | TSAL6200 | × 1 or × 3 | 940 nm, ±17°, 100 mA |
-| Q1 NPN | S9013 H331 | Ic 500 mA, hFE 144–202 (H group), TO-92, ECB pinout |
+| Q1 NPN | S9013 H331 | Ic 500 mA, hFE 144–202 (H group), TO-92, EBC pinout |
 | R_base | 2.2 kΩ | GPIO → base |
 | R_series | 22 Ω each | 100 mA per LED at 3.3 V |
 | C_bulk | 220 µF electrolytic | rail stabilisation, close to Q1 collector |
 
 ## Notes
 
-- **S9013 pinout (TO-92, flat face forward): E – C – B** (left to right). This differs from BC337 (E–B–C) — verify before soldering.
+- **S9013 pinout (TO-92, flat face forward): E – B – C** (left to right, per datasheet). Same order as BC337 — but always verify against the datasheet before soldering, since other 9013 variants and clones sometimes differ.
 - At 1/3 duty cycle (Daikin/NEC encoding), average current per LED is ~33 mA — well within continuous ratings.
 - The IRremote library (AVR target) handles the 38 kHz carrier via timer — no manual toggling needed.
 - For the multi-LED version, bend the outer LEDs to the target angle before soldering; a small cardboard jig helps keep angles consistent.
