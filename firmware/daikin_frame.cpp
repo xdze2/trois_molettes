@@ -31,7 +31,11 @@ void daikin_build_frame(const ACState *st, uint8_t frame[DAIKIN_FRAME_LEN]) {
     frame[2] = 0x27;
     // frame[3] = 0x00  (already zero)
     frame[4] = 0xC5;
-    // frame[5..6] = 0x00
+    // frame[5] = 0x10 — reserved byte the real ARC466A33 remote always emits.
+    // The library's stateReset() leaves it 0x00; the real capture
+    // (howtos/data/dump_fan_loop.txt) shows 0x10. See howto 07.
+    frame[5] = 0x10;
+    // frame[6] = 0x00
     frame[7] = sum_bytes(frame, 7);   // checksum
 
     // -----------------------------------------------------------------------
@@ -42,7 +46,12 @@ void daikin_build_frame(const ACState *st, uint8_t frame[DAIKIN_FRAME_LEN]) {
     frame[10] = 0x27;
     // frame[11] = 0x00
     frame[12] = 0x42;
-    // frame[13..14] = clock bits, left 0x00 (clock unused)
+    // frame[13..14] = real-time-clock field.  The library models this as
+    // "unused"/0x00, but the real ARC466A33 capture emits 0x04 0x20 even with
+    // the clock irrelevant — and the unit checksums section 2, so these must
+    // match or the frame is rejected.  See howto 07.
+    frame[13] = 0x04;
+    frame[14] = 0x20;
     frame[15] = sum_bytes(frame + 8, 7);  // checksum
 
     // -----------------------------------------------------------------------
@@ -91,11 +100,14 @@ void daikin_build_frame(const ACState *st, uint8_t frame[DAIKIN_FRAME_LEN]) {
     if (st->powerful) frame[29] |= (1 << 0);
 
     // Byte 30: reserved, left 0x00.
-    // Byte 31: 0xC0 — two reserved bits always set per reference stateReset().
-    frame[31] = 0xC0;
+    // Byte 31: reserved bits.  Reference stateReset() sets 0xC0, but the real
+    // ARC466A33 capture emits 0xC1 (bit 0 also set).  See howto 07.
+    frame[31] = 0xC1;
 
-    // Byte 32: Econo(bit2). WeeklyTimer(bit7) and other reserved bits are 0x00 here
-    // (reference stateReset sets 0xC0 at [31] and 0x00 at [32]).
+    // Byte 32: 0x80 — reserved bit the real ARC466A33 remote always sets
+    // (invariant across all 10 captured frames; the library leaves this 0x00).
+    // Econo is bit2 on top. See howto 07.
+    frame[32] = 0x80;
     if (st->econo) frame[32] |= (1 << 2);
 
     // Byte 33: Mold bit — not exposed; left 0x00.
