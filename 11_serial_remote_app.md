@@ -159,28 +159,17 @@ in (`--mock`), then switched to the real serial port with a flag. It also makes
 `protocol.py` testable in CI without hardware. Keep it one file — three backend
 modules is overkill for a demo tool.
 
-### 5.2 UI sketch
+### 5.2 UI
 
-```
-┌─ Daikin Remote ──────────────────────────────┐
-│                                               │
-│   MODE   ( Fan  ‹Cool›  Heat  Dry  Auto )     │
-│   FAN    ( Off  1  2  ‹3›  4  5  Quiet  Auto ) │
-│   TEMP   ‹ 24 °C ›        [ − ]  [ + ]         │
-│   SWING  [ off ]                               │
-│                                               │
-│              [  ▶  SEND  ]                     │
-│                                               │
-│ ── TX log ───────────────────────────────────│
-│ 12:31:04  SEND → SENT 11DA2700C5...  ✓ beep   │
-│ 12:30:58  TEMP 24 → OK                        │
-└───────────────────────────────────────────────┘
-   q quit   ←/→ select   enter send   m mock
-```
+![Daikin TUI](images/screenshot_app_tui.png)
 
-Adjusting widgets does **not** transmit — they just update local state, exactly like
-turning a knob without pressing Send. **Send** ships the current snapshot as one
-`SEND fan=… mode=… temp=… swing=…` line and appends the `SENT <hex>` reply to the log.
+Each picker click — or temp ±, or Enter/Space on the focused button — immediately
+ships the full current state as one `SEND fan=… mode=… temp=… swing=…` line and
+appends the `SENT <hex>` reply to the log. The green-highlighted button in each
+card is the **last value successfully sent** (so the UI reflects what the AC is
+actually doing, not unsent intent). The standalone **▶ RESEND** button re-sends
+the current state without changing it. `←`/`→` are aliased to Tab / Shift-Tab —
+pure focus motion, no selection side-effects.
 
 ### 5.3 Connection handling
 

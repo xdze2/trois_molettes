@@ -214,8 +214,9 @@ void loop() {
             buf[pos] = '\0';
             pos = 0;
 
-            // Uppercase in-place for case-insensitive matching
-            for (char *p = buf; *p; p++) {
+            // Uppercase only the first word (command) for case-insensitive dispatch;
+            // leave key=value pairs as-is so strcmp against lowercase literals works.
+            for (char *p = buf; *p && *p != ' '; p++) {
                 if (*p >= 'a' && *p <= 'z') *p -= 32;
             }
 

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator, Protocol
-
-import serial_asyncio  # type: ignore[import-untyped]
+import serial  # type: ignore[import-untyped]
+from typing import Protocol
 
 from protocol import build_send, parse_reply
 
@@ -26,47 +25,53 @@ class SerialBackend:
     def __init__(self, port: str, baud: int = 115200) -> None:
         self._port = port
         self._baud = baud
-        self._reader: asyncio.StreamReader | None = None
-        self._writer: asyncio.StreamWriter | None = None
+        self._ser: serial.Serial | None = None
 
     async def connect(self) -> str:
-        self._reader, self._writer = await serial_asyncio.open_serial_connection(
-            url=self._port, baudrate=self._baud
-        )
-        # Drain any boot banner (READY line)
+        return await asyncio.to_thread(self._connect_sync)
+
+    def _connect_sync(self) -> str:
+        # serial.Serial opens exactly like the Arduino IDE Serial Monitor does.
+        # timeout=2 matches capture.py; the port open itself triggers the DTR
+        # reset on CH340 — Serial waits for the board to reboot before reading.
+        self._ser = serial.Serial(self._port, self._baud, timeout=2)
+
+        # Drain boot banner
         version = ""
-        try:
-            raw = await asyncio.wait_for(self._reader.readline(), timeout=2.0)
-            kind, rest = parse_reply(raw.decode(errors="replace"))
+        while True:
+            line = self._ser.readline().decode(errors="replace").strip()
+            if not line:
+                break  # timeout → no more queued lines
+            kind, rest = parse_reply(line)
             if kind == "READY":
                 version = rest
-        except asyncio.TimeoutError:
-            pass
 
         # Liveness check
-        await self._writeline("PING")
-        raw = await asyncio.wait_for(self._reader.readline(), timeout=2.0)
-        kind, _ = parse_reply(raw.decode(errors="replace"))
+        self._ser.write(b"PING\n")
+        self._ser.flush()
+        line = self._ser.readline().decode(errors="replace").strip()
+        kind, _ = parse_reply(line)
         if kind != "PONG":
-            raise ConnectionError(f"Expected PONG, got: {raw!r}")
+            raise ConnectionError(f"Expected PONG, got: {line!r}")
 
         return version
 
     async def send(self, fan: str, mode: str, temp: int, swing: str) -> tuple[str, str]:
-        assert self._reader and self._writer
-        await self._writeline(build_send(fan, mode, temp, swing))
-        raw = await asyncio.wait_for(self._reader.readline(), timeout=5.0)
-        return parse_reply(raw.decode(errors="replace"))
+        return await asyncio.to_thread(self._send_sync, fan, mode, temp, swing)
+
+    def _send_sync(self, fan: str, mode: str, temp: int, swing: str) -> tuple[str, str]:
+        assert self._ser
+        cmd = build_send(fan, mode, temp, swing) + "\n"
+        self._ser.write(cmd.encode())
+        self._ser.flush()
+        self._ser.timeout = 5  # IR burst takes ~120 ms; give generous margin
+        line = self._ser.readline().decode(errors="replace").strip()
+        self._ser.timeout = 2
+        return parse_reply(line)
 
     async def close(self) -> None:
-        if self._writer:
-            self._writer.close()
-            await self._writer.wait_closed()
-
-    async def _writeline(self, line: str) -> None:
-        assert self._writer
-        self._writer.write((line + "\n").encode())
-        await self._writer.drain()
+        if self._ser:
+            self._ser.close()
 
 
 class MockBackend:

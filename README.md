@@ -78,6 +78,8 @@ phases, each de-risking the next:
    TUI soft front-panel driving the AC over serial → 328P → IR. Goal: exercise the **full
    control mapping** (every Fan/Mode/Temp/Swing combination) from the keyboard and shake
    out mapping bugs while it's still just text — before committing any of it to physical knobs.
+
+   ![TUI app screenshot](images/screenshot_app_tui.png)
 2. **Prototype integration on a wood panel** — mount the real encoders on a throwaway
    panel, wire to the devboard, run from battery. Goal: answer the questions only a
    physical build answers — knob feel/spacing, IR LED placement and real-room range/aiming,
