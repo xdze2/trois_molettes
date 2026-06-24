@@ -23,14 +23,24 @@
 #define IR_PIN 3   // OC2B — Timer2 compare output B
 
 // ---------------------------------------------------------------------------
-// Daikin protocol timing constants (µs), from IRremoteESP8266 ir_Daikin.h
+// Daikin protocol timing constants (µs).
+//
+// Bit-level values follow IRremoteESP8266 ir_Daikin.h.  The header and gap
+// values are taken from the REAL ARC466A33 capture (howtos/data/dump_fan_loop.txt,
+// decoded in howto 07), which diverges from the library's nominal numbers:
+//
+//   - Header mark/space measured ~3492 / ~1712 µs (library says 3650 / 1623).
+//   - The library uses a single 29 ms gap everywhere; the real remote uses
+//     ~25 ms after the preamble and ~35 ms between sections.  Using one 29 ms
+//     value for both is wrong on this remote.
 // ---------------------------------------------------------------------------
-#define DAIKIN_HDR_MARK    3650
-#define DAIKIN_HDR_SPACE   1623
+#define DAIKIN_HDR_MARK    3500
+#define DAIKIN_HDR_SPACE   1700
 #define DAIKIN_BIT_MARK     428
 #define DAIKIN_ONE_SPACE   1280
 #define DAIKIN_ZERO_SPACE   428
-#define DAIKIN_GAP        29000   // inter-section gap (space after last bit mark)
+#define DAIKIN_LEADER_GAP 25000   // gap after the 0b00000 preamble (real: ~25 ms)
+#define DAIKIN_SECTION_GAP 35000  // gap between data sections (real: ~35 ms)
 
 // ---------------------------------------------------------------------------
 // Timer2 — 38 kHz carrier on OC2B (D3)
@@ -84,12 +94,12 @@ static void send_byte(uint8_t b) {
 // ---------------------------------------------------------------------------
 // sendSection — header + data bytes + trailing bit-mark + gap
 // ---------------------------------------------------------------------------
-static void send_section(const uint8_t *data, uint8_t len) {
+static void send_section(const uint8_t *data, uint8_t len, uint16_t gap) {
     ir_mark(DAIKIN_HDR_MARK);
     ir_space(DAIKIN_HDR_SPACE);
     for (uint8_t i = 0; i < len; i++) send_byte(data[i]);
     ir_mark(DAIKIN_BIT_MARK);
-    ir_space(DAIKIN_GAP);
+    ir_space(gap);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,11 +118,11 @@ static void send_daikin(const uint8_t frame[DAIKIN_FRAME_LEN]) {
         ir_space(DAIKIN_ZERO_SPACE);
     }
     ir_mark(DAIKIN_BIT_MARK);
-    ir_space(DAIKIN_GAP);
+    ir_space(DAIKIN_LEADER_GAP);
 
-    send_section(frame,      8);   // section 1
-    send_section(frame + 8,  8);   // section 2
-    send_section(frame + 16, 19);  // section 3
+    send_section(frame,      8,  DAIKIN_SECTION_GAP);   // section 1
+    send_section(frame + 8,  8,  DAIKIN_SECTION_GAP);   // section 2
+    send_section(frame + 16, 19, DAIKIN_SECTION_GAP);   // section 3
 }
 
 // ---------------------------------------------------------------------------
