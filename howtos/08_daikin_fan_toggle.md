@@ -58,6 +58,29 @@ library's nominal value shown for reference:
 | Leader gap        | 25 000 µs | 29 000 µs     | post-preamble, capture ≈ 25.1 ms |
 | Inter-section gap | 35 000 µs | 29 000 µs     | between sections, capture ≈ 35.5 ms |
 
+### Long-gap pitfall — `delayMicroseconds()` only goes to ~16 ms
+
+`delayMicroseconds()` is documented accurate only up to **16383 µs**; past that
+it silently returns near-immediately.  The 25 ms leader gap and 35 ms
+inter-section gaps both exceed that, so an early version of this sketch
+collapsed all three sections into one continuous ~300 ms burst on the scope —
+no visible gaps — and the AC unit ignored the frame.
+
+The fix is a small helper that chunks the wait into 16 ms `delay()` slices
+(carrier already off, so `delay()` is fine):
+
+```c
+static void ir_space_long(uint32_t us) {
+    TCCR2A &= ~(1 << COM2B0);
+    digitalWrite(IR_PIN, LOW);
+    while (us >= 16000) { delay(16); us -= 16000; }
+    if (us) delayMicroseconds((uint16_t)us);
+}
+```
+
+Used for the leader gap and section gaps only; the sub-millisecond bit/header
+spaces still go through the regular `ir_space()`.
+
 ### Carrier generation — Timer2 CTC
 
 Timer2 in CTC mode toggles OC2B (D3) at the compare match.  With F_CPU = 8 MHz
@@ -112,9 +135,20 @@ gaps, and the three HDR mark / data / bit-mark sequences.  (These scope shots
 predate the gap-timing fix and show the old uniform ~29 ms gaps; the sketch now
 sends ~25 ms after the preamble and ~35 ms between sections.)
 
-## Expected result
+## Result — working end-to-end (2026-06-24)
 
-The AC unit should beep and change fan speed 30 s after each transmission.
+After the long-gap fix the AC unit **beeps and switches fan speed on every
+transmission**.  Confirmed live: alternating MIN ↔ MAX every loop iteration.
+
+Range observation: reliable up to **~2–3 m** with the single IR LED on D3.
+Beyond that, aiming becomes the limiting factor — the beam is too narrow to
+hit the AC's receiver window without careful alignment.
+
+**Next hardware step:** move from one LED to **three LEDs** spread across a
+small angular range so the remote works from anywhere in the room without
+aiming.  The transistor drive circuit already has the headroom; the schematic
+work lives in `schematics/` (see project convention notes).
+
 Serial monitor shows:
 
 ```
@@ -128,15 +162,18 @@ Sending fan=MAX (5)
 
 | Symptom | Likely cause |
 |---------|-------------|
-| AC does not respond at all | LED not pointing at AC receiver; check alignment and reduce distance. (The frame-content and gap-timing bugs that caused this before are now fixed — see howto 07.) |
+| AC does not respond at all | LED not pointing at AC receiver; check alignment and reduce distance (single LED reliable up to ~2–3 m). (The frame-content and gap-timing bugs that caused this before are now fixed — see howto 07.) |
+| Scope shows preamble + one ~300 ms blob, no inter-section gaps | `delayMicroseconds()` overflow on the 25/35 ms gaps — use `ir_space_long()` (see *Long-gap pitfall* above) |
 | AC responds to some frames but not others | Carrier frequency off — measure on a scope and tweak OCR2A (±1 ≈ ±0.6 kHz) |
 | Garbled serial output | Wrong baud rate in monitor — use 4800 |
 | Sketch won't compile, missing `daikin_frame.h` | The sketch dir contains symlinks to `../../firmware/daikin_frame.{h,cpp}` — make sure they survived a checkout (Windows clones drop symlinks by default) |
 
-> **Status (2026-06-24):** Two root causes for the earlier non-response were
-> found by diffing against the real capture (howto 07) and fixed in software:
-> (1) five wrong fixed/reserved bytes that broke the section checksums, and
+> **Status (2026-06-24):** Working end-to-end — AC beeps and changes fan
+> speed on every transmission, range ~2–3 m with a single LED.  Three root
+> causes for the earlier non-response were fixed: (1) five wrong
+> fixed/reserved bytes that broke the section checksums (howto 07),
 > (2) gap timings set to the library's uniform 29 ms instead of the remote's
-> ~25 ms / ~35 ms.  Both fixes are now in the frame builder and this sketch.
-> **Next step: re-flash and retest against the real AC unit** to confirm it now
-> beeps and changes fan speed.
+> ~25 ms / ~35 ms, and (3) `delayMicroseconds()` silently truncating those
+> long gaps so all three sections fused into one ~300 ms burst.
+> **Next step: 3-LED array** to widen the beam and remove the aiming
+> constraint past ~3 m.

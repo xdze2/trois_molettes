@@ -77,6 +77,16 @@ static void ir_space(uint16_t us) {
     delayMicroseconds(us);
 }
 
+// delayMicroseconds() is only accurate up to ~16383 µs.  The Daikin gaps
+// (25 ms leader, 35 ms inter-section) exceed that and silently collapse to
+// near-zero, fusing all sections into one ~300 ms blob on the scope.
+static void ir_space_long(uint32_t us) {
+    TCCR2A &= ~(1 << COM2B0);
+    digitalWrite(IR_PIN, LOW);
+    while (us >= 16000) { delay(16); us -= 16000; }
+    if (us) delayMicroseconds((uint16_t)us);
+}
+
 // ---------------------------------------------------------------------------
 // sendByte — LSB first, as per Daikin protocol
 // ---------------------------------------------------------------------------
@@ -94,12 +104,12 @@ static void send_byte(uint8_t b) {
 // ---------------------------------------------------------------------------
 // sendSection — header + data bytes + trailing bit-mark + gap
 // ---------------------------------------------------------------------------
-static void send_section(const uint8_t *data, uint8_t len, uint16_t gap) {
+static void send_section(const uint8_t *data, uint8_t len, uint32_t gap) {
     ir_mark(DAIKIN_HDR_MARK);
     ir_space(DAIKIN_HDR_SPACE);
     for (uint8_t i = 0; i < len; i++) send_byte(data[i]);
     ir_mark(DAIKIN_BIT_MARK);
-    ir_space(gap);
+    ir_space_long(gap);
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +128,7 @@ static void send_daikin(const uint8_t frame[DAIKIN_FRAME_LEN]) {
         ir_space(DAIKIN_ZERO_SPACE);
     }
     ir_mark(DAIKIN_BIT_MARK);
-    ir_space(DAIKIN_LEADER_GAP);
+    ir_space_long(DAIKIN_LEADER_GAP);
 
     send_section(frame,      8,  DAIKIN_SECTION_GAP);   // section 1
     send_section(frame + 8,  8,  DAIKIN_SECTION_GAP);   // section 2
@@ -159,5 +169,5 @@ void loop() {
     delay(400);                  // hold LED on long enough to see
     digitalWrite(LED_BUILTIN, LOW);
 
-    delay(5000);
+    delay(4000);
 }
