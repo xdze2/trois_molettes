@@ -14,9 +14,9 @@ A physical, tangible IR remote control for a Daikin split AC unit — no screen,
 
 ## Concept
 
-Three rotary knobs control **fan speed/power**, **mode**, and **temperature**. Four push buttons handle secondary modes (Powerful, Econo, Swing, Resend). The physical knob positions *are* the displayed state — there is no per-position indicator, only a single LED that flashes on IR send. A single IR LED transmits to the AC unit.
+Three rotary knobs control **fan speed/power**, **mode**, and **temperature**. A **Send** push button transmits the current state via IR; an optional **Swing** toggle handles louvre swing if panel space allows. The physical knob positions *are* the displayed state — there is no per-position indicator, only a single LED that flashes on IR send. A single (or 3× fanned) IR LED transmits to the AC unit.
 
-Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `DAIKIN` via IRremoteESP8266
+Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `DAIKIN` (frame ported to AVR `IRremote`; `IRDaikinAC` from IRremoteESP8266 used as the reference format)
 
 ## Files
 
@@ -32,11 +32,11 @@ Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `D
 
 ## Hardware summary
 
-- **MCU:** nRF52840 (Seeed XIAO) — preferred for µA-class board sleep (~1.5–2.4 µA) and all-GPIO both-edge wake; alternatives STM32L4 (STOP2) / ATmega328P (power-down). Chosen on sleep current + 13-pin wake, not the IR library — bench-validation pending
-- **IR:** 940 nm LED + NPN transistor driver · 38 kHz carrier via MCU PWM/timer · Daikin frame ported from the documented format (`IRDaikinAC` as reference)
+- **MCU:** ATmega328P (Pro Mini 3.3 V) — on hand, sufficient for this design, ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 were evaluated for lower µA-class sleep; see [03_microcontroller_choice.md](03_microcontroller_choice.md))
+- **IR:** TSAL6200 940 nm LED (×1 or ×3 fan) + S9013 NPN transistor driver · 38 kHz carrier via the 328P Timer2 (OC2B, pin D3) · Daikin ARC466A33 frame ported from the documented format and validated against the real unit
 - **Inputs:** 3 rotary selectors (all 1-pole) + 4 tactile buttons
 - **Rotary readout:** each switch diode-encoded into a small binary code on its own GPIO; the code lines double as both-edge wake interrupts (no ADC, no 2-pole, no analog rail) — see [05_electronics_circuit.md](05_electronics_circuit.md#3-readout--wake--design-options)
 - **Feedback:** single TX indicator LED (knob positions are the state)
-- **Power:** Li-Po 3.7 V · TP4056 USB-C charging module · MCU in deepest sleep between transmissions, woken by GPIO edge (6-month → multi-year battery target — bench-validation pending)
+- **Power:** Li-Po 3.7 V · TP4056 USB-C charging module · MCU in `SLEEP_MODE_PWR_DOWN` between transmissions, woken by PCINT edge (6-month → multi-year battery target — bench-validation pending)
 - **BOM cost:** < €35
 - **Enclosure:** 3D-printed ~80 × 100 × 25 mm, handheld or wall-mounted

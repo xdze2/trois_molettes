@@ -99,7 +99,7 @@ build_frame()     ← daikin layer
 uint8_t frame[35]
 ```
 
-The button toggles (Powerful, Econo, Swing) are the only internal software state — they have no absolute physical position. They are stored in a small struct that persists across sleep cycles (RAM retained in the chosen MCUs).
+The optional Swing toggle is the only internal software state — it has no absolute physical position to read back, unlike the knobs. It is stored in a small struct that persists across sleep cycles (the ATmega328P retains SRAM through `SLEEP_MODE_PWR_DOWN`).
 
 ---
 
@@ -128,7 +128,7 @@ The byte layout and checksum algorithm are taken directly from the `IRDaikinESP`
 
 ## 5. HAL — AVR implementation
 
-On the ATmega328P (or nRF52840 equivalent):
+On the ATmega328P:
 
 **`hal_send_ir(frame, len)`**
 
@@ -193,7 +193,7 @@ ir_mock/
   Makefile
 
 firmware/
-  main.cpp             ← AVR/nRF entry point (same app logic as Linux)
+  main.cpp             ← AVR entry point (same app logic as Linux)
   daikin_frame.h
   daikin_frame.cpp     ← portable Daikin frame builder
   inputs.h             ← GPIO pin assignment (TBD)

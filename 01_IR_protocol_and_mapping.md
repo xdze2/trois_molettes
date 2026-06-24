@@ -123,7 +123,7 @@ The protocol supports on-timer, off-timer, weekly timer, and current time/day. M
 | [blafois/Daikin-IR-Reverse](https://github.com/blafois/Daikin-IR-Reverse) | Documentation | Original community reverse-engineering. Frame structure reference. |
 | [Arduino-IRremote](https://github.com/Arduino-IRremote/Arduino-IRremote) | C++ (Arduino) | Alternative, less complete Daikin support. Not recommended. |
 
-Minimal usage example (reference — IRremoteESP8266 on an ESP32). On the chosen nRF52840 / STM32L4 / AVR the same `setPower/setMode/setTemp/send` logic is ported by hand, since this library targets ESP only; it remains the cleanest reference for the frame contents:
+Minimal usage example (reference — IRremoteESP8266 on an ESP32). On the ATmega328P the same `setPower/setMode/setTemp/send` logic is ported by hand, since this library targets ESP only; it remains the cleanest reference for the frame contents:
 
 ```cpp
 #include <IRremoteESP8266.h>

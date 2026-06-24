@@ -15,26 +15,26 @@ The whole design is pulled in two directions at once: the **stateless interface*
 
 ## 1. The shape of the device
 
-Three rotary selectors (Fan/Power, Mode, Temperature) + 3–4 push buttons, an IR LED, one indicator LED, on a sleeping MCU. No screen, no per-position lights — the knobs *are* the display. See [00_specifications.md](00_specifications.md).
+Three rotary selectors (Fan/Power, Mode, Temperature) + a Send button (+ optional Swing toggle), an IR LED, one indicator LED, on a sleeping MCU. No screen, no per-position lights — the knobs *are* the display. See [00_specifications.md](00_specifications.md).
 
 | Block | Choice | Status |
 |---|---|---|
-| MCU | **nRF52840 (XIAO)**, alt. STM32L4 / ATmega328P | preferred; bench-validate µA sleep + 13-pin wake |
-| IR | 940 nm LED + NPN driver; **ported Daikin frame** (lib is optional) | chosen |
-| Rotary readout + wake | **per-switch diode encoding on 1P switches (Approach D)** | chosen; bench-validate deep-sleep GPIO wake |
-| Buttons | momentary → GPIO, internal pull-up, wake on edge | chosen |
-| Feedback | single TX LED (WS2812B chain dropped) | chosen |
-| Power | Li-Po + TP4056, weak switch pull-downs, deep sleep | chosen; cell size pending |
+| MCU | **ATmega328P (Pro Mini 3.3 V)** | locked — ported and tested; bench-validate sleep current |
+| IR | TSAL6200 940 nm LED (×1 or ×3) + S9013 driver; **ported Daikin frame** | locked — validated against the real unit |
+| Rotary readout + wake | **per-switch diode encoding on 1P switches** | locked; deep-sleep PCINT wake validated on the RS1010 |
+| Buttons | momentary → GPIO, internal pull-up, wake on edge | locked |
+| Feedback | single TX LED (WS2812B chain dropped) | locked |
+| Power | Li-Po + TP4056, weak switch pull-downs, deep sleep | chosen; cell size pending bench measurement |
 
 ---
 
 ## 2. MCU — chosen on sleep current and wake, not on the IR library
 
-The device sleeps ~100 % of the time, so **sleep current ≈ average current ≈ the whole battery budget** — and the diode-encoded readout needs **~13 GPIO that can wake the MCU on both edges**. Those two, plus a **perfboard-only / dev-board-only** build rule (no PCB fabrication), drive the choice. The IR library — once the headline constraint — is now just a convenience: the Daikin frame is a documented byte array we accept porting.
+The device sleeps ~100 % of the time, so **sleep current ≈ average current ≈ the whole battery budget** — and the diode-encoded readout needs **~12 GPIO that can wake the MCU on both edges**. Those two, plus a **perfboard-only / dev-board-only** build rule (no PCB fabrication), drove the choice.
 
-**This inverts the earlier RP2040 pick.** The Pico *board* sleeps at ~1–1.8 mA (always-on RT6150 SMPS) → ~9 weeks, missing the target; its only fix (bare RP2040 + LDO, ~180 µA) needs a custom PCB, which the perfboard rule forbids. The cheap ESP32-C parts sleep well but expose too few deep-sleep wake pins (6–8 < 13).
+**Locked: ATmega328P (Pro Mini 3.3 V).** On hand, simplest to hand-build, and it clears both gates: `SLEEP_MODE_PWR_DOWN` with PCINT both-edge wake on every code/button line (genuinely per-pin, including non-zero→non-zero code changes), and a documented AVR IR path via Timer2. The board sleep floor is dominated by the Pro Mini's onboard LDO quiescent (~75 µA) rather than the chip itself (~0.1 µA power-down) — a known cost, mitigated by removing the power LED and optionally swapping the LDO (see [07_battery_and_power.md §4](07_battery_and_power.md)).
 
-**Preferred: nRF52840 (Seeed XIAO)** — ~1.5–2.4 µA board sleep, all-GPIO per-pin wake, native 38 kHz IR (Nordic Smart Remote class). Alternatives that also clear both gates: **STM32L4 in STOP2** (~2–4 µA, the only true hardware any-pin both-edge) and **ATmega328P power-down** (<1 µA, PCINT both-edge, simplest to hand-build). First bench test is now **sleep + 13-pin wake**, with IR transmit second. See [03_microcontroller_choice.md](03_microcontroller_choice.md) and [Battery budget](05_electronics_circuit.md#6-battery-budget).
+The lower-µA candidates — **nRF52840 (Seeed XIAO)** (~1.5–2.4 µA board sleep, all-GPIO wake) and **STM32L4 STOP2** (~2–4 µA) — were evaluated and remain the upgrade path if the LDO floor proves too high for the battery target. The earlier RP2040 pick was dropped (Pico board ~1–1.8 mA from its always-on SMPS); cheap ESP32-C parts expose too few deep-sleep wake pins. Full comparison in [03_microcontroller_choice.md](03_microcontroller_choice.md); budget in [07_battery_and_power.md](07_battery_and_power.md).
 
 ---
 
@@ -51,11 +51,11 @@ This is the same trick a coded rotary switch uses, wired by hand onto a **big, t
 
 | Selector | Positions | Bits → GPIO |
 |---|---|---|
-| Fan / Power | 6 | 3 |
-| Mode | 4 | 2 |
-| Temperature | 11 | 4 |
+| Fan / Power | 8 (SR16) | 3 |
+| Mode | 5 (RS1010) | 3 |
+| Temperature | 8 (SR16) | 3 |
 
-Plus 4 button GPIO ≈ **13 input pins**, all interrupt-armed — comfortably within any candidate board's pin count.
+Plus Send (+ optional Swing) button GPIO ≈ **10–11 input pins**, all interrupt-armed — well within the 328P's pin count (see the full pinout in [05_electronics_circuit.md §1](05_electronics_circuit.md)).
 
 ### Why this, over the alternatives considered
 
@@ -65,13 +65,13 @@ Plus 4 button GPIO ≈ **13 input pins**, all interrupt-armed — comfortably wi
 
 ### Still to validate on the bench
 
-The wake depends on **deep-sleep GPIO wake on ~13 lines** in whatever the chosen MCU's lowest viable mode is (nRF52 System ON / STM32 STOP2 / AVR power-down). All three preferred parts support it, but it must be proven — measure sleep current *and* confirm every line wakes on both edges, including non-zero→non-zero code changes. This is now the **first** bench test, ahead of IR. See [05 §8](05_electronics_circuit.md#8-open-questions).
+PCINT both-edge wake from `SLEEP_MODE_PWR_DOWN` is **validated on the RS1010** (10 ms settle window, see [howtos/03_rs1010_readout.md](howtos/03_rs1010_readout.md)) — every line wakes on either edge, including non-zero→non-zero code changes. What remains is the **sleep-current measurement** on the assembled board (power LED removed) to fix the cell size.
 
 ---
 
-## 4. Push buttons
+## 4. Buttons
 
-3–4 momentary buttons → GPIO with internal pull-up, each an interrupt/wake source. Powerful and Econo are mutually exclusive; Resend just retransmits. The button toggle states (Powerful / Econo / Swing) are the **only** internal software state — they have no physical position to read back, unlike the knobs. See mapping in [01_IR_protocol_and_mapping.md §5.5](01_IR_protocol_and_mapping.md).
+**Send** — momentary button → GPIO with internal pull-up, an interrupt/wake source. It is the only action that transmits IR; it changes no setting (the knobs hold the state). An optional **Swing** toggle (if panel space allows) is the only control with internal software state — it has no absolute physical position to read back, unlike the knobs. See mapping in [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md).
 
 ---
 
@@ -83,7 +83,7 @@ One indicator LED, flashes on IR send, confirms the device is alive. The 25-LED 
 
 ## 6. Power
 
-Li-Po single cell, TP4056 USB-C charge/protect module, 100 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. With a µA-class board (nRF52840 ~1.5–2.4 µA), board standby and switch leakage are the same order, and the 6-month target has comfortable margin — but cell size is left **TBD until the chosen board's sleep is measured**. Detail and budget in [05_electronics_circuit.md §5–6](05_electronics_circuit.md#5-power).
+Li-Po single cell, TP4056 USB-C charge/protect module, 220 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. On the Pro Mini the **LDO quiescent (~75 µA) is the dominant sleep term**, not the switch leakage; the 6-month target is reachable on a small cell after removing the power LED, with room to push toward "years" by swapping the LDO. Cell size is left **TBD until sleep current is measured on the assembled board**. Detail and budget in [07_battery_and_power.md](07_battery_and_power.md).
 
 ---
 
@@ -95,11 +95,13 @@ Send a fresh IR frame on every control change — no confirm step. A settle-wind
 
 ## 8. Open questions (the decisions that still gate the build)
 
-1. **Sleep current + 13-pin both-edge wake** — validate *first*, on the preferred board (nRF52840 XIAO): measure deep-sleep current and confirm all ~13 lines wake on either edge. This is the gating test and the biggest lever on the 6-month target. Decides the MCU.
-2. **Daikin IR transmit** — port/send one frame and confirm the FTXM20N2V1B responds. Portable across all three candidate MCUs, so it follows the power test rather than gating the board choice.
-3. **Secondary modes** — confirm Powerful / Econo / Swing are accepted by the FTXM20N2V1B over IR (sets the final button count).
-4. **Switch choice on feel** — pick the three 1P switches on detent quality and body size (no pole constraint now); confirm shaft/knob fit.
-5. **Enclosure fit** — three knobs (big bodies) side by side in the 80×100 mm panel.
-6. **BOM ≤ €35** — source-check the final 1P switch set + diodes on Tayda / Mouser / LCSC.
+With the three subsystems individually proven (selector readout + sleep/wake, real Daikin IR comms, AVR port), the remaining questions are about **integration and finish**, not feasibility:
 
-(Resolved: readout = per-switch diode encoding on 1P switches. Mode = 4 positions. Feedback = single TX LED. IR = DAIKIN, transmit ported (`IRDaikinAC` as reference). MCU = nRF52840 (XIAO) preferred, alt. STM32L4 / ATmega328P.)
+1. **Sleep current measurement** — measure `SLEEP_MODE_PWR_DOWN` current on the assembled board with the power LED removed. Biggest lever on the 6-month target; decides cell size and whether to swap the LDO.
+2. **Swing support** — confirm the FTXM20N2V1B accepts a swing toggle over IR (decides whether the optional Swing control ships).
+3. **IR LED mounting** — part is fixed (TSAL6200); open is the mount: 3× fan vs. aimable friction-gimbal head (see [06_IR_LED_wiring.md](06_IR_LED_wiring.md)).
+4. **Knob / shaft fit** — confirm the SR16 and RS1010 6 mm shafts accept the same knob cap; confirm detent feel.
+5. **Panel fit** — two SR16 + one RS1010 + Send (+ optional Swing) on the 80×100 mm face.
+6. **BOM ≤ €35** — source-check the final switch set + diodes on Tayda / Mouser / LCSC.
+
+(Resolved: MCU = ATmega328P (Pro Mini 3.3 V), ported and tested. Readout = per-switch diode encoding on 1P switches; PCINT both-edge wake validated. Positions = Fan 8 / Mode 5 / Temp 8. Feedback = single TX LED. IR = DAIKIN frame ported to AVR (`IRDaikinAC` as reference), validated against the real unit.)
