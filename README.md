@@ -80,6 +80,8 @@ phases, each de-risking the next:
    out mapping bugs while it's still just text — before committing any of it to physical knobs.
 
    ![TUI app screenshot](images/screenshot_app_tui.png)
+
+   ![Hardware prototype](images/photos/PXL_20260624_193416426_web.jpg)
 2. **Prototype integration on a wood panel** — mount the real encoders on a throwaway
    panel, wire to the devboard, run from battery. Goal: answer the questions only a
    physical build answers — knob feel/spacing, IR LED placement and real-room range/aiming,
