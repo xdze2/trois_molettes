@@ -75,8 +75,16 @@ Each LED gets its own resistor to balance current (never share a single resistor
 If per LED  = 100 mA
 If_total    = 3 × 100 mA = 300 mA  →  S9013 (500 mA) handles this comfortably
 R per LED   = (3.3V - 1.35V) / 0.1A = 19.5 Ω  → use 18 Ω or 22 Ω each
-R_base      = 2.2 kΩ
+
+R_base (3× LEDs): Ib needed = Ic / hFE_min = 300 mA / 144 ≈ 2.1 mA
+                  With 2× saturation margin: Ib_target ≈ 4.2 mA
+                  R_base = (3.3V - 0.7V) / 4.2 mA ≈ 620 Ω  → use 680 Ω
 ```
+
+> **Do not reuse the single-LED R_base of 2.2 kΩ here.** At 300 mA collector
+> current, 2.2 kΩ gives only ~1.4 mA base current — below the ~2.1 mA needed
+> for saturation. The transistor stays in active region, Vce rises to ~0.8 V,
+> and LED current is lower than calculated.
 
 ![3-LED circuit with bulk cap](schematics/ir_led_3x.png)
 
@@ -210,7 +218,7 @@ point-at-the-AC interaction.
 |---|---|---|
 | TSAL6200 | × 1 or × 3 | 940 nm, ±17°, 100 mA |
 | Q1 NPN | S9013 H331 | Ic 500 mA, hFE 144–202 (H group), TO-92, EBC pinout |
-| R_base | 2.2 kΩ | GPIO → base |
+| R_base | 2.2 kΩ (1× LED) / 680 Ω (3× LEDs) | GPIO → base; value depends on total Ic |
 | R_series | 22 Ω each | 100 mA per LED at 3.3 V |
 | C_bulk | 220 µF electrolytic | rail stabilisation, close to Q1 collector |
 
@@ -218,6 +226,6 @@ point-at-the-AC interaction.
 
 - **S9013 pinout (TO-92, flat face forward): E – B – C** (left to right, per datasheet). Same order as BC337 — but always verify against the datasheet before soldering, since other 9013 variants and clones sometimes differ.
 - At 1/3 duty cycle (Daikin/NEC encoding), average current per LED is ~33 mA — well within continuous ratings.
-- The IRremote library (AVR target) handles the 38 kHz carrier via timer — no manual toggling needed.
+- The IRremote library (AVR target) handles the 38 kHz carrier via timer — no manual toggling needed. **The send pin must be a hardware timer output: use pin 3 (OC2B, Timer 2, IRremote default).** Arbitrary GPIO pins (e.g. pin 2) only produce the mark/space envelope without the 38 kHz carrier — the AC will not respond.
 - For the multi-LED version, bend the outer LEDs to the target angle before soldering; a small cardboard jig helps keep angles consistent.
 - Desolder the Pro Mini power LED before measuring sleep current — it draws ~1 mA continuously and dominates the sleep budget.
