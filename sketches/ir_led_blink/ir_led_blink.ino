@@ -7,7 +7,7 @@
 // GPIO HIGH -> transistor saturates -> LED ON.
 // GPIO LOW  -> transistor off       -> LED OFF.
 
-#define LED_PIN 3
+#define LED_PIN 2
 #define BAUD_RATE 4800
 
 void setup() {
