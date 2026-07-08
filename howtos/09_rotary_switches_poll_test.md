@@ -98,16 +98,45 @@ assuming the switch itself is faulty:
 4. **Debounce** — only after ruling out the above, treat leftover glitches
    during rotation as settle-window tuning.
 
+## End-to-end: knob change → IR transmit → real unit
+
+[sketches/daikin_knob_remote/daikin_knob_remote.ino](../sketches/daikin_knob_remote/daikin_knob_remote.ino)
+combines this bring-up's validated Fan + Mode readout with the IR TX path from
+`daikin_serial` / `daikin_fan_toggle`. It's a near-final knob firmware: Temp is
+not wired yet (see Next below) so it's held at a fixed 24 °C, but Fan and Mode
+are live.
+
+There is **no Send button** in this sketch — every change of either knob
+immediately builds a frame via `daikin_build_frame()` and transmits it. The
+switch position *is* the state, matching the stateless-device model from
+[11_serial_remote_app.md](../11_serial_remote_app.md). An earlier version gated
+transmission behind a Send-button press edge; the button wiring was never
+actually connected on this bench so nothing was ever sent. Removing the
+button requirement and transmitting straight off the change-detect in the
+poll loop fixed it — confirmed against the real Daikin unit, e.g.:
+
+```
+Fan: pos=1 (Speed 1)
+SEND fan=Speed 1 mode=Cool temp=24
+SENT 11DA2700C51000E711DA27004204207811DA27000038300...
+
+Fan: pos=3 (Speed 3)
+SEND fan=Speed 3 mode=Cool temp=24
+SENT 11DA2700C51000E711DA27004204207811DA27000039300...
+```
+
+```
+uv run sketches/daikin_knob_remote/capture.py /dev/cu.usbserial-XXXX
+uv run sketches/daikin_knob_remote/capture.py /dev/cu.usbserial-XXXX --sends-only
+```
+
 ## Next
 
 - **Wire the Temperature switch** (D4/D5/D6 per the pin table) and repeat this
   same bring-up: check bit order, pin assignment, and diode sequence before
   trusting the readout. Temp reuses the same SR16 part as Fan, so the same
-  off-by-one diode shift is plausible until proven otherwise.
-- **End-to-end test with the IR LED against the real Daikin unit**: combine
-  knob readout with `daikin_fan_toggle` / `daikin_serial` (the validated IR TX
-  path) so a knob move + Send press actually changes the unit's state, not
-  just prints to serial.
+  off-by-one diode shift is plausible until proven otherwise. Then wire it
+  into `daikin_knob_remote` in place of `TEMP_DEFAULT_C`.
 - **Sleep mode test**: repeat the above on `rs1010_wiring_test`-style
   `SLEEP_MODE_PWR_DOWN` + PCINT wake, across all three switches' code lines
   plus Send/Swing, per [05_electronics_circuit.md §5](../05_electronics_circuit.md).
