@@ -1,15 +1,12 @@
 // daikin_knob_remote — ATmega328P Pro Mini @ 3.3V, 8 MHz
 //
-// Near-final knob firmware: reads the Fan and Mode rotary switches and
+// Near-final knob firmware: reads the Fan, Mode and Temp rotary switches and
 // transmits a Daikin IR frame built from the current knob state on every
-// change of either knob (no Send button — the switch position is the state,
-// per 11_serial_remote_app.md's stateless-device model). Logs every reading
-// and every transmit to Serial.
-//
-// Temp is not yet wired on the bench (per howtos/09_rotary_switches_poll_test.md
-// "Next"), so temperature is held at a fixed default here; swapping in the
-// third switch later is a drop-in using the same readDebouncedCode() pattern
-// as Fan/Mode (see TEMP_DEFAULT_C below).
+// change of any knob (no Send button — the switch position is the state,
+// per 11_serial_remote_app.md's stateless-device model). A Resend button
+// re-transmits the current state on demand without requiring a knob change
+// (per 00_specifications.md §"resend action" / 01_IR_protocol_and_mapping.md
+// RESEND). Logs every reading and every transmit to Serial.
 //
 // Pure polling, no sleep, no IRQ — matches the bring-up sketches this is
 // built from. Sleep + PCINT wake is a separate, later step (see howto 09).
@@ -20,6 +17,11 @@
 //                                              order vs. the design doc; see
 //                                              howto 09 "Mode: pins were
 //                                              swapped, not the switch")
+//   Temp      (SR16, 8 pos):  D4, D5, D6     (PD4, PD5, PD6)
+//   Resend button:             D2 (PD2, INT0), external pull-down, active-high
+//                               (bench wiring: button to +3.3V, external R to
+//                               GND — same convention as the rotary switch
+//                               code lines, not the doc's pull-up/active-low)
 //
 // IR path — Timer2 38 kHz carrier on D3 (OC2B), verbatim from daikin_serial /
 // daikin_fan_toggle. daikin_build_frame() / firmware protocol timing are the
@@ -35,6 +37,7 @@
 // ---------------------------------------------------------------------------
 #define BAUD_RATE 115200
 #define IR_PIN     3   // OC2B — Timer2 compare output B
+#define RESEND_PIN 2   // PD2 / INT0, external pull-down, active-high
 
 // ---------------------------------------------------------------------------
 // Protocol timing constants (µs) — identical to daikin_serial / daikin_fan_toggle
@@ -61,11 +64,12 @@ struct Switch {
 // position rather than re-wiring the diodes. See howto 09.
 const uint8_t FAN_RAW_TO_POS[8] = {0, 7, 6, 5, 4, 3, 2, 1};
 
-enum { SW_FAN = 0, SW_MODE = 1 };
+enum { SW_FAN = 0, SW_MODE = 1, SW_TEMP = 2 };
 
 Switch switches[] = {
     { "Fan",  {10, 11, 12}, FAN_RAW_TO_POS, 0xFF },
     { "Mode", {A2, A1, A0}, nullptr,        0xFF },  // pin order per howto 09 fix
+    { "Temp", {4,  5,  6},  nullptr,        0xFF },
 };
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;
@@ -74,10 +78,9 @@ const uint8_t SETTLE_MS = 10;
 const uint8_t SETTLE_STABLE_READS = 5;  // consecutive agreeing reads required
 const uint8_t MAX_SETTLE_TRIES = 20;
 
-// Temp switch not wired yet on the bench (howto 09 "Next"); hold a fixed
-// default so the frame builder always gets a value in range. Cooling-range
-// default: position 2 -> 24C (see 00_specifications.md 4.3).
-const uint8_t TEMP_DEFAULT_C = 24;
+// Resend button debounce (simple hold-off, not a settle loop like the knobs —
+// see 05_electronics_circuit.md §4).
+const uint16_t RESEND_DEBOUNCE_MS = 50;
 
 // ---------------------------------------------------------------------------
 // Timer2 -- 38 kHz carrier on OC2B (D3)
@@ -230,6 +233,14 @@ void applyModePos(uint8_t pos, ACState *st) {
     }
 }
 
+// Temp knob position (0..7, 05_electronics_circuit.md §2) -> degrees C.
+// Mode-dependent offset: Heat uses 14-28C, everything else uses 20-34C,
+// both in 2C steps (00_specifications.md 4.3).
+uint8_t applyTempPos(uint8_t pos, uint8_t mode) {
+    uint8_t base = (mode == DAIKIN_MODE_HEAT) ? 14 : 20;
+    return base + pos * 2;
+}
+
 // ---------------------------------------------------------------------------
 // Setup / loop
 // ---------------------------------------------------------------------------
@@ -247,18 +258,16 @@ void setup() {
         }
     }
     pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(RESEND_PIN, INPUT);  // external pull-down on the bench, not internal pull-up
 
     timer2_38khz_start();
 
     Serial.println("READY daikin-knob-remote/1.0");
-    Serial.print("Temp fixed at ");
-    Serial.print(TEMP_DEFAULT_C);
-    Serial.println(" C (switch not wired yet)");
 }
 
 void loop() {
-    // Poll Fan + Mode; transmit whenever either changes (knob position *is*
-    // the state — no separate Send button, per 11_serial_remote_app.md's
+    // Poll Fan + Mode + Temp; transmit whenever any changes (knob position
+    // *is* the state — no separate Send button, per 11_serial_remote_app.md's
     // stateless-device model).
     bool anyChanged = false;
     uint8_t pos[N_SWITCHES];
@@ -270,25 +279,52 @@ void loop() {
             Serial.print(switches[s].name);
             Serial.print(": pos=");
             Serial.print(pos[s]);
-            Serial.print(" (");
-            Serial.print(s == SW_FAN ? fanMeaning(pos[s]) : modeMeaning(pos[s]));
-            Serial.println(")");
+            if (s == SW_FAN || s == SW_MODE) {
+                Serial.print(" (");
+                Serial.print(s == SW_FAN ? fanMeaning(pos[s]) : modeMeaning(pos[s]));
+                Serial.print(")");
+            }
+            Serial.println();
             switches[s].lastCode = pos[s];
             anyChanged = true;
         }
     }
 
     if (anyChanged) {
-        sendCurrentState(pos[SW_FAN], pos[SW_MODE]);
+        sendCurrentState(pos[SW_FAN], pos[SW_MODE], pos[SW_TEMP]);
+    } else if (resendButtonPressed()) {
+        // Resend: retransmit current knob state unchanged, without requiring
+        // a knob move (00_specifications.md "resend action" /
+        // 01_IR_protocol_and_mapping.md RESEND).
+        Serial.println("RESEND");
+        sendCurrentState(pos[SW_FAN], pos[SW_MODE], pos[SW_TEMP]);
     }
 }
 
-void sendCurrentState(uint8_t fanPos, uint8_t modePos) {
+// Active-high (external pull-down on the bench — button to +3.3V, not GND).
+// Simple debounce: require the line to still read pressed after
+// RESEND_DEBOUNCE_MS, then wait for release before returning true again
+// (edge-triggered, not level-triggered).
+bool resendButtonPressed() {
+    static bool wasPressed = false;
+    bool isPressed = (digitalRead(RESEND_PIN) == HIGH);
+
+    if (isPressed && !wasPressed) {
+        delay(RESEND_DEBOUNCE_MS);
+        isPressed = (digitalRead(RESEND_PIN) == HIGH);
+    }
+
+    bool triggered = isPressed && !wasPressed;
+    wasPressed = isPressed;
+    return triggered;
+}
+
+void sendCurrentState(uint8_t fanPos, uint8_t modePos, uint8_t tempPos) {
     ACState st;
     memset(&st, 0, sizeof(st));
     applyFanPos(fanPos, &st);
     applyModePos(modePos, &st);
-    st.temp    = TEMP_DEFAULT_C;
+    st.temp    = applyTempPos(tempPos, st.mode);
     st.swing_v = false;
 
     Serial.print("SEND fan=");

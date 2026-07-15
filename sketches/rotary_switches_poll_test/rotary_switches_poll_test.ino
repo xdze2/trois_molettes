@@ -1,28 +1,35 @@
-// All-3-switches polling test (no sleep)
+// All-3-switches + Resend button polling test (no sleep)
 //
 // Reads the diode-encoded code lines of all three rotary switches
 // (see 05_electronics_circuit.md §1-2) and prints each switch's bits,
-// decoded position, and (where known) meaning on Serial.
+// decoded position, and (where known) meaning on Serial. Also polls the
+// Resend button and prints on press.
 //
-// Wiring (per §1-2 / §5):
+// Wiring (per §1-2 / §4-5):
 //   wiper = +3.3 V
 //   each position contact -> diode -> code line (HIGH on selected pos)
 //   each code line -> external 1 MΩ pull-down to GND
 //   each code line -> one MCU GPIO (INPUT, high-Z; no internal pull-up)
+//   Resend button -> external pull-down to GND, button to +3.3V, active-high
+//   (bench wiring — same convention as the rotary switch code lines, not the
+//   design doc's pull-up/active-low)
 //
 // Pin groups (Arduino labels, per §1 pin table):
 //   Fan speed (SR16, 8 pos): D10, D11, D12  (PB2, PB3, PB4)
 //   Mode      (RS1010, 5 pos): A0, A1, A2   (PC0, PC1, PC2)
 //   Temp      (SR16, 8 pos): D4, D5, D6     (PD4, PD5, PD6)
+//   Resend button: D2 (PD2 / INT0), external pull-down, active-high
 //
 // Behaviour:
 //   - Pure polling loop, no sleep, no IRQ.
 //   - Debounces the inter-detent float glitch (all lines briefly read 0):
 //     only accepts a code after two consecutive reads, separated by
 //     SETTLE_MS, agree (per §5 "Debounce").
-//   - Prints on any switch change and at PRINT_INTERVAL_MS heartbeat.
+//   - Prints on any switch change, on Resend press, and at
+//     PRINT_INTERVAL_MS heartbeat.
 
 #define BAUD_RATE 9600
+#define RESEND_PIN 2   // PD2 / INT0, external pull-down, active-high
 
 struct Switch {
     const char *name;
@@ -52,6 +59,10 @@ const unsigned long PRINT_INTERVAL_MS = 5000;
 const uint8_t SETTLE_MS = 10;
 const uint8_t SETTLE_STABLE_READS = 5;  // consecutive agreeing reads required
 const uint8_t MAX_SETTLE_TRIES = 20;
+
+// Resend button debounce: simple hold-off, not a settle loop like the knobs
+// (see 05_electronics_circuit.md §4).
+const uint16_t RESEND_DEBOUNCE_MS = 50;
 
 unsigned long lastPrint = 0;
 
@@ -98,8 +109,9 @@ void setup() {
             pinMode(switches[s].pins[i], INPUT);
         }
     }
+    pinMode(RESEND_PIN, INPUT);  // external pull-down on the bench, not internal pull-up
 
-    Serial.println("Rotary switches (Fan/Mode/Temp) polling test ready.");
+    Serial.println("Rotary switches (Fan/Mode/Temp) + Resend button polling test ready.");
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
         Serial.print(switches[s].name);
         Serial.print(" pins (b0..b2): ");
@@ -133,6 +145,28 @@ void loop() {
         Serial.println();
         lastPrint = now;
     }
+
+    if (resendButtonPressed()) {
+        Serial.println("* Resend: pressed");
+    }
+}
+
+// Active-high (external pull-down on the bench — button to +3.3V, not GND).
+// Simple debounce: require the line to still read pressed after
+// RESEND_DEBOUNCE_MS, then wait for release before returning true again
+// (edge-triggered, not level-triggered).
+bool resendButtonPressed() {
+    static bool wasPressed = false;
+    bool isPressed = (digitalRead(RESEND_PIN) == HIGH);
+
+    if (isPressed && !wasPressed) {
+        delay(RESEND_DEBOUNCE_MS);
+        isPressed = (digitalRead(RESEND_PIN) == HIGH);
+    }
+
+    bool triggered = isPressed && !wasPressed;
+    wasPressed = isPressed;
+    return triggered;
 }
 
 uint8_t readCodeOnce(const uint8_t pins[N_BITS]) {
