@@ -71,8 +71,7 @@ were actually proven.
 - ✅ Real IR comms with the Daikin unit — full frame, AC beeps & changes state
 - ✅ Firmware ported to the ATmega328P (8 MHz, Timer2 carrier, validated frame)
 
-Next is **integration** — wiring it all together and giving it a body. Planned in three
-phases, each de-risking the next:
+Integration is underway. Planned in three phases, each de-risking the next:
 
 1. **Python serial app** ([11_serial_remote_app.md](11_serial_remote_app.md)) — a Textual
    TUI soft front-panel driving the AC over serial → 328P → IR. Goal: exercise the **full
@@ -82,11 +81,24 @@ phases, each de-risking the next:
    ![TUI app screenshot](images/screenshot_app_tui.png)
 
    ![Hardware prototype](images/photos/PXL_20260624_193416426_web.jpg)
-2. **Prototype integration on a wood panel** — mount the real encoders on a throwaway
-   panel, wire to the devboard, run from battery. Goal: answer the questions only a
-   physical build answers — knob feel/spacing, IR LED placement and real-room range/aiming,
-   measured sleep current on battery, end-to-end usability. Mistakes here cost a plank, not
-   a case.
+2. **✅ Prototype integration on a wood panel** — first prototype almost done: real
+   encoders wired to the devboard, running end-to-end. Still missing: panel labels, the
+   rs1010 side-switch panel layout, attaching the battery, and temperature-range tuning.
+
+   Lessons learned:
+   - A nice box without a PCB is hard — perfboard wiring mess and component size (the
+     readout diodes especially) eat panel space fast.
+   - A Li-Po battery is likely overkill; actual sleep/active current draw still needs
+     measuring before picking a battery chemistry.
+   - The rotary switch mounting and wiring approach needs rework — current method doesn't
+     scale well to three knobs in an enclosure.
+   - 3× IR LEDs work electrically but are not enclosure/design-friendly; worth revisiting
+     against a single wider-angle LED.
+   - Open question: is a dedicated swing switch worth the panel space, or should swing
+     live on an existing control?
+
+   **Next up: source rotary switches** — settle the mounting/wiring rework above before
+   committing to the panel layout.
 3. **Proper case + better wiring** — design the 3D-printed enclosure and revisit the wiring
    (perfboard → PCB?) once the panel prototype has fixed the real dimensions, the LED mount,
    and the layout that survived contact with reality.
