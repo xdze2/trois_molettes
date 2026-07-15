@@ -21,7 +21,9 @@
 // Pin groups (Arduino labels, per §1 pin table) and their PCINT group:
 //   Fan speed (SR16, 8 pos): D10, D11, D12  (PB2/3/4  -> PCINT2/3/4,   PCIE0)
 //   Mode      (RS1010, 5 pos): A0, A1, A2   (PC0/1/2  -> PCINT8/9/10,  PCIE1)
-//   Temp      (SR16, 8 pos): D4, D5, D6     (PD4/5/6  -> PCINT20/21/22,PCIE2)
+//   Temp      (SR16, 8 pos): D6, D5, D4     (PD4/5/6  -> PCINT20/21/22,PCIE2 —
+//                                             note swapped b0/b2 pins vs. the
+//                                             design doc; confirmed on bench)
 //   Resend button: D2 (PD2 / INT0)          (PCINT18, PCIE2)
 //   Swing toggle:  D7 (PD7)                 (PCINT23, PCIE2)
 // All three PCI groups (0, 1, 2) are armed.
@@ -60,7 +62,7 @@ const uint8_t FAN_RAW_TO_POS[8] = {0, 7, 6, 5, 4, 3, 2, 1};
 Switch switches[] = {
     { "Fan",  {10, 11, 12}, FAN_RAW_TO_POS, 0xFF },
     { "Mode", {A2, A1, A0}, nullptr,        0xFF },
-    { "Temp", {4,  5,  6},  nullptr,        0xFF },
+    { "Temp", {6,  5,  4},  nullptr,        0xFF },
 };
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;

@@ -17,7 +17,9 @@
 //                                              order vs. the design doc; see
 //                                              howto 09 "Mode: pins were
 //                                              swapped, not the switch")
-//   Temp      (SR16, 8 pos):  D4, D5, D6     (PD4, PD5, PD6)
+//   Temp      (SR16, 8 pos):  D6, D5, D4     (PD6, PD5, PD4 — note swapped
+//                                              b0/b2 pins vs. the design doc;
+//                                              see howto 09)
 //   Resend button:             D2 (PD2, INT0), external pull-down, active-high
 //                               (bench wiring: button to +3.3V, external R to
 //                               GND — same convention as the rotary switch
@@ -69,7 +71,7 @@ enum { SW_FAN = 0, SW_MODE = 1, SW_TEMP = 2 };
 Switch switches[] = {
     { "Fan",  {10, 11, 12}, FAN_RAW_TO_POS, 0xFF },
     { "Mode", {A2, A1, A0}, nullptr,        0xFF },  // pin order per howto 09 fix
-    { "Temp", {4,  5,  6},  nullptr,        0xFF },
+    { "Temp", {6,  5,  4},  nullptr,        0xFF },  // b0/b2 pins swapped vs. design doc; see howto 09
 };
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;
