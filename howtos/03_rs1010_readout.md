@@ -111,9 +111,11 @@ and goes back to sleep.
 
 ## Sketches
 
-- [sketches/rs1010_poll_test/rs1010_poll_test.ino](../sketches/rs1010_poll_test/rs1010_poll_test.ino)
-  — simple polling loop with debounce, no sleep. Use this first to confirm
-  wiring and code mapping.
-- [sketches/rs1010_wiring_test/rs1010_wiring_test.ino](../sketches/rs1010_wiring_test/rs1010_wiring_test.ino)
-  — same debounce + `SLEEP_MODE_PWR_DOWN` + PCINT wake. LED_BUILTIN is HIGH
-  while awake, LOW while sleeping (visual confirmation of the wake path).
+The single-switch polling and sleep/wake sketches originally used for this
+bring-up (`rs1010_poll_test`, `rs1010_wiring_test`) have since been folded
+into the consolidated all-inputs test — see
+[sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino](../sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino)
+and [09_rotary_switches_poll_test.md](09_rotary_switches_poll_test.md). It
+covers all three rotary switches plus Resend and Swing in one polling loop
+(no sleep); the sleep/PCINT-wake pattern demonstrated here still applies
+when wiring wake support into later firmware.

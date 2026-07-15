@@ -9,15 +9,21 @@ See [03_rs1010_readout.md](03_rs1010_readout.md) for the original single-switch
 
 [sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino](../sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino)
 
-Polls all three switches (Fan, Mode, Temp), debounces each independently, and
-prints bits + decoded meaning on any change or every 5 s heartbeat. No sleep,
-no IRQ — pure polling, for wiring/mapping bring-up only.
+Polls all three switches (Fan, Mode, Temp) plus Resend and Swing, debounces
+each independently, and prints bits + decoded meaning on any change or every
+5 s heartbeat. No sleep, no IRQ — pure polling, for wiring/mapping bring-up
+only. This is the one sketch to reach for when bringing up or re-checking
+any GPIO input in the design.
 
 ```
 uv run --version   # Arduino upload as usual, then:
-uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -b 9600
-uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -b 9600 -f '*'
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -f '*'
 ```
+
+Sketch runs at 115200 (clears CKDIV8 in `setup()` — see
+[02_serial_debug.md](02_serial_debug.md)), which matches
+`serial_capture.py`'s default, so no `-b` flag is needed.
 
 [tools/serial_capture.py](../tools/serial_capture.py) is the shared
 pyserial-based capture helper (since `stty … && cat` doesn't hold baud rate

@@ -1,35 +1,42 @@
-// All-3-switches + Resend button polling test (no sleep)
+// All-inputs polling test (no sleep)
 //
-// Reads the diode-encoded code lines of all three rotary switches
-// (see 05_electronics_circuit.md §1-2) and prints each switch's bits,
-// decoded position, and (where known) meaning on Serial. Also polls the
-// Resend button and prints on press.
+// Single sketch to bring up every GPIO input in the design: all three
+// rotary switches, the Resend button, and the Swing toggle. Reads the
+// diode-encoded code lines of the rotary switches (see
+// 05_electronics_circuit.md §1-2) and prints each switch's bits, decoded
+// position, and (where known) meaning on Serial. Also polls Resend and
+// Swing and prints on any change.
 //
 // Wiring (per §1-2 / §4-5):
-//   wiper = +3.3 V
-//   each position contact -> diode -> code line (HIGH on selected pos)
-//   each code line -> external 1 MΩ pull-down to GND
-//   each code line -> one MCU GPIO (INPUT, high-Z; no internal pull-up)
+//   Rotary switches:
+//     wiper = +3.3 V
+//     each position contact -> diode -> code line (HIGH on selected pos)
+//     each code line -> external 1 MΩ pull-down to GND
+//     each code line -> one MCU GPIO (INPUT, high-Z; no internal pull-up)
 //   Resend button -> external pull-down to GND, button to +3.3V, active-high
 //   (bench wiring — same convention as the rotary switch code lines, not the
 //   design doc's pull-up/active-low)
+//   Swing toggle -> GPIO to GND, pin in INPUT_PULLUP, active-low
+//   (per §4 — no external resistor needed)
 //
 // Pin groups (Arduino labels, per §1 pin table):
 //   Fan speed (SR16, 8 pos): D10, D11, D12  (PB2, PB3, PB4)
 //   Mode      (RS1010, 5 pos): A0, A1, A2   (PC0, PC1, PC2)
 //   Temp      (SR16, 8 pos): D4, D5, D6     (PD4, PD5, PD6)
 //   Resend button: D2 (PD2 / INT0), external pull-down, active-high
+//   Swing toggle:  D7 (PD7), INPUT_PULLUP, active-low
 //
 // Behaviour:
 //   - Pure polling loop, no sleep, no IRQ.
 //   - Debounces the inter-detent float glitch (all lines briefly read 0):
 //     only accepts a code after two consecutive reads, separated by
 //     SETTLE_MS, agree (per §5 "Debounce").
-//   - Prints on any switch change, on Resend press, and at
+//   - Prints on any switch change, on Resend press, on Swing change, and at
 //     PRINT_INTERVAL_MS heartbeat.
 
-#define BAUD_RATE 9600
+#define BAUD_RATE 115200
 #define RESEND_PIN 2   // PD2 / INT0, external pull-down, active-high
+#define SWING_PIN  7   // PD7, INPUT_PULLUP, active-low
 
 struct Switch {
     const char *name;
@@ -102,6 +109,12 @@ const char *tempMeaning(uint8_t code) {
 }
 
 void setup() {
+    // Clear CKDIV8 so the chip runs at nominal 8 MHz regardless of fuse state
+    // (same idiom as daikin_serial / daikin_knob_remote / ir_rx_dump — see
+    // howtos/02_serial_debug.md).
+    CLKPR = 0x80;
+    CLKPR = 0x00;
+
     Serial.begin(BAUD_RATE);
 
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
@@ -110,8 +123,9 @@ void setup() {
         }
     }
     pinMode(RESEND_PIN, INPUT);  // external pull-down on the bench, not internal pull-up
+    pinMode(SWING_PIN, INPUT_PULLUP);  // per §4: internal pull-up, active-low
 
-    Serial.println("Rotary switches (Fan/Mode/Temp) + Resend button polling test ready.");
+    Serial.println("All-inputs polling test ready: Fan/Mode/Temp + Resend + Swing.");
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
         Serial.print(switches[s].name);
         Serial.print(" pins (b0..b2): ");
@@ -149,6 +163,11 @@ void loop() {
     if (resendButtonPressed()) {
         Serial.println("* Resend: pressed");
     }
+
+    if (swingChanged()) {
+        Serial.print("* Swing: ");
+        Serial.println(digitalRead(SWING_PIN) == LOW ? "ON" : "OFF");
+    }
 }
 
 // Active-high (external pull-down on the bench — button to +3.3V, not GND).
@@ -167,6 +186,23 @@ bool resendButtonPressed() {
     bool triggered = isPressed && !wasPressed;
     wasPressed = isPressed;
     return triggered;
+}
+
+// INPUT_PULLUP, active-low (per §4: toggle to GND, no external resistor).
+// Simple level debounce: report a change only after it holds for
+// RESEND_DEBOUNCE_MS (reused here; toggles don't need a separate constant).
+bool swingChanged() {
+    static bool lastState = HIGH;
+    bool state = digitalRead(SWING_PIN);
+
+    if (state != lastState) {
+        delay(RESEND_DEBOUNCE_MS);
+        state = digitalRead(SWING_PIN);
+        if (state == lastState) return false;
+        lastState = state;
+        return true;
+    }
+    return false;
 }
 
 uint8_t readCodeOnce(const uint8_t pins[N_BITS]) {
