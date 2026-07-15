@@ -144,7 +144,7 @@ allocation. No command table, no state machine — there is no protocol logic to
 ## 5. Python app — `tools/daikin_tui/`
 
 `uv`-managed (PEP 723 inline-metadata script or a small package), matching the repo's
-existing uv convention ([schematics/](schematics/), [sketches/ir_rx_dump/capture.py](sketches/ir_rx_dump/capture.py)).
+existing uv convention ([schematics/](schematics/), [tools/serial_capture.py](tools/serial_capture.py)).
 
 ### 5.1 Modules
 

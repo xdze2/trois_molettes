@@ -67,18 +67,19 @@ ls /dev/cu.usbserial-*
 
 `stty … && cat` does **not** work reliably on macOS — `cat` reopens the device
 with default termios and resets the baud rate stty just set, so you get nothing
-or garbage.  Use the pyserial helper script (replace `XXXX` with your device
-suffix):
+or garbage.  Use the shared pyserial helper script (replace `XXXX` with your
+device suffix):
 
 ```bash
-uv run sketches/ir_rx_dump/capture.py /dev/cu.usbserial-XXXX
-uv run sketches/ir_rx_dump/capture.py /dev/cu.usbserial-XXXX -o dump.txt
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -o dump.txt
 ```
 
-The script is a self-contained [uv](https://docs.astral.sh/uv/) script (PEP 723
-inline metadata pulls in `pyserial`), defaults to 115200 baud, and prints each
-line as it arrives.  Press a button on the real remote, then Ctrl-C.  Each
-button press produces one full frame ending with `===`.
+[tools/serial_capture.py](../tools/serial_capture.py) is a self-contained
+[uv](https://docs.astral.sh/uv/) script (PEP 723 inline metadata pulls in
+`pyserial`), defaults to 115200 baud, and prints each line as it arrives.
+Press a button on the real remote, then Ctrl-C.  Each button press produces
+one full frame ending with `===`.
 
 ## Captured reference: full fan-speed loop
 

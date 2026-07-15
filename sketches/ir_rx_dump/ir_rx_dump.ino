@@ -26,8 +26,8 @@
 //   ===        <- end-of-frame gap (>60 ms)
 //
 // Capture on macOS:
-//   uv run sketches/ir_rx_dump/capture.py /dev/cu.usbserial-XXXX
-//   uv run sketches/ir_rx_dump/capture.py /dev/cu.usbserial-XXXX -o dump.txt
+//   uv run tools/serial_capture.py /dev/cu.usbserial-XXXX
+//   uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -o dump.txt
 
 #include <avr/io.h>
 #include <avr/interrupt.h>

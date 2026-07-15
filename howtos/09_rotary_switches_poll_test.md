@@ -15,15 +15,14 @@ no IRQ — pure polling, for wiring/mapping bring-up only.
 
 ```
 uv run --version   # Arduino upload as usual, then:
-uv run sketches/rotary_switches_poll_test/capture.py /dev/cu.usbserial-XXXX
-uv run sketches/rotary_switches_poll_test/capture.py /dev/cu.usbserial-XXXX --changes-only
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -b 9600
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -b 9600 -f '*'
 ```
 
-`capture.py` mirrors [ir_rx_dump/capture.py](../sketches/ir_rx_dump/capture.py)
-(pyserial-based, since `stty … && cat` doesn't hold baud rate reliably on
-macOS), defaulting to 9600 baud. `--changes-only` filters to lines the sketch
-flags with a leading `*` — useful once you trust the wiring and just want to
-watch a knob move.
+[tools/serial_capture.py](../tools/serial_capture.py) is the shared
+pyserial-based capture helper (since `stty … && cat` doesn't hold baud rate
+reliably on macOS). `-f '*'` filters to lines the sketch flags with a leading
+`*` — useful once you trust the wiring and just want to watch a knob move.
 
 ## Fan speed: diode encoding shifted by one position
 
@@ -126,8 +125,8 @@ SENT 11DA2700C51000E711DA27004204207811DA27000039300...
 ```
 
 ```
-uv run sketches/daikin_knob_remote/capture.py /dev/cu.usbserial-XXXX
-uv run sketches/daikin_knob_remote/capture.py /dev/cu.usbserial-XXXX --sends-only
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX
+uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -f SEND -f SENT
 ```
 
 ## Next
