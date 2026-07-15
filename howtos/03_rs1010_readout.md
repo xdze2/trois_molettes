@@ -114,8 +114,8 @@ and goes back to sleep.
 The single-switch polling and sleep/wake sketches originally used for this
 bring-up (`rs1010_poll_test`, `rs1010_wiring_test`) have since been folded
 into the consolidated all-inputs test — see
-[sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino](../sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino)
-and [09_rotary_switches_poll_test.md](09_rotary_switches_poll_test.md). It
-covers all three rotary switches plus Resend and Swing in one polling loop
-(no sleep); the sleep/PCINT-wake pattern demonstrated here still applies
-when wiring wake support into later firmware.
+[sketches/rotary_switches_wake_test/rotary_switches_wake_test.ino](../sketches/rotary_switches_wake_test/rotary_switches_wake_test.ino)
+and [09_rotary_switches_wake_test.md](09_rotary_switches_wake_test.md). It
+covers all three rotary switches plus Resend and Swing, sleeping in
+`SLEEP_MODE_PWR_DOWN` and waking on PCINT exactly as demonstrated here,
+extended to all three PCI groups.

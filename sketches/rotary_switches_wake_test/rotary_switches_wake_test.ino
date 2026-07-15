@@ -1,11 +1,10 @@
-// All-inputs polling test (no sleep)
+// All-inputs sleep/wake test (PCINT)
 //
 // Single sketch to bring up every GPIO input in the design: all three
-// rotary switches, the Resend button, and the Swing toggle. Reads the
-// diode-encoded code lines of the rotary switches (see
-// 05_electronics_circuit.md §1-2) and prints each switch's bits, decoded
-// position, and (where known) meaning on Serial. Also polls Resend and
-// Swing and prints on any change.
+// rotary switches, the Resend button, and the Swing toggle. Sleeps in
+// SLEEP_MODE_PWR_DOWN and wakes on any edge of any input line via PCINT
+// (see 05_electronics_circuit.md §5). On wake, reads all inputs with
+// debounce and prints only what changed — nothing is printed while idle.
 //
 // Wiring (per §1-2 / §4-5):
 //   Rotary switches:
@@ -19,20 +18,24 @@
 //   Swing toggle -> GPIO to GND, pin in INPUT_PULLUP, active-low
 //   (per §4 — no external resistor needed)
 //
-// Pin groups (Arduino labels, per §1 pin table):
-//   Fan speed (SR16, 8 pos): D10, D11, D12  (PB2, PB3, PB4)
-//   Mode      (RS1010, 5 pos): A0, A1, A2   (PC0, PC1, PC2)
-//   Temp      (SR16, 8 pos): D4, D5, D6     (PD4, PD5, PD6)
-//   Resend button: D2 (PD2 / INT0), external pull-down, active-high
-//   Swing toggle:  D7 (PD7), INPUT_PULLUP, active-low
+// Pin groups (Arduino labels, per §1 pin table) and their PCINT group:
+//   Fan speed (SR16, 8 pos): D10, D11, D12  (PB2/3/4  -> PCINT2/3/4,   PCIE0)
+//   Mode      (RS1010, 5 pos): A0, A1, A2   (PC0/1/2  -> PCINT8/9/10,  PCIE1)
+//   Temp      (SR16, 8 pos): D4, D5, D6     (PD4/5/6  -> PCINT20/21/22,PCIE2)
+//   Resend button: D2 (PD2 / INT0)          (PCINT18, PCIE2)
+//   Swing toggle:  D7 (PD7)                 (PCINT23, PCIE2)
+// All three PCI groups (0, 1, 2) are armed.
 //
 // Behaviour:
-//   - Pure polling loop, no sleep, no IRQ.
+//   - loop() only sleeps and, on wake, reads + prints — no polling.
 //   - Debounces the inter-detent float glitch (all lines briefly read 0):
-//     only accepts a code after two consecutive reads, separated by
-//     SETTLE_MS, agree (per §5 "Debounce").
-//   - Prints on any switch change, on Resend press, on Swing change, and at
-//     PRINT_INTERVAL_MS heartbeat.
+//     only accepts a code after SETTLE_STABLE_READS consecutive agreeing
+//     reads, each separated by SETTLE_MS (per §5 "Debounce").
+//   - Prints only on an actual change: switch position, Resend press, or
+//     Swing toggle. Silent otherwise, including across the float glitch.
+
+#include <avr/sleep.h>
+#include <avr/interrupt.h>
 
 #define BAUD_RATE 115200
 #define RESEND_PIN 2   // PD2 / INT0, external pull-down, active-high
@@ -62,16 +65,15 @@ Switch switches[] = {
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;
 
-const unsigned long PRINT_INTERVAL_MS = 5000;
 const uint8_t SETTLE_MS = 10;
 const uint8_t SETTLE_STABLE_READS = 5;  // consecutive agreeing reads required
 const uint8_t MAX_SETTLE_TRIES = 20;
 
-// Resend button debounce: simple hold-off, not a settle loop like the knobs
+// Resend / Swing debounce: simple hold-off, not a settle loop like the knobs
 // (see 05_electronics_circuit.md §4).
-const uint16_t RESEND_DEBOUNCE_MS = 50;
+const uint16_t BUTTON_DEBOUNCE_MS = 50;
 
-unsigned long lastPrint = 0;
+volatile bool wakeFlag = false;
 
 const char *fanMeaning(uint8_t code) {
     switch (code) {
@@ -125,39 +127,29 @@ void setup() {
     pinMode(RESEND_PIN, INPUT);  // external pull-down on the bench, not internal pull-up
     pinMode(SWING_PIN, INPUT_PULLUP);  // per §4: internal pull-up, active-low
 
-    Serial.println("All-inputs polling test ready: Fan/Mode/Temp + Resend + Swing.");
+    // Seed lastCode/lastState from the current wiring so setup doesn't print
+    // a spurious "change" for whatever position the knobs happen to rest at.
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
-        Serial.print(switches[s].name);
-        Serial.print(" pins (b0..b2): ");
-        for (uint8_t i = 0; i < N_BITS; i++) {
-            Serial.print(switches[s].pins[i]);
-            if (i < N_BITS - 1) Serial.print(", ");
-        }
-        Serial.println();
+        switches[s].lastCode = readCodeOnce(switches[s].pins);
     }
+
+    enablePCINT();
+
+    Serial.println("All-inputs sleep/wake test ready: Fan/Mode/Temp + Resend + Swing.");
+    Serial.println("Sleeping — turn a knob or press a button to see output.");
+    Serial.flush();
 }
 
 void loop() {
-    unsigned long now = millis();
-    bool tick = (now - lastPrint >= PRINT_INTERVAL_MS);
-    bool anyChanged = false;
+    sleepUntilWake();
 
-    uint8_t codes[N_SWITCHES];
-    bool changed[N_SWITCHES];
-
+    // Woke up: read + debounce every switch, print only what changed.
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
-        codes[s] = readDebouncedCode(switches[s].pins);
-        changed[s] = (codes[s] != switches[s].lastCode);
-        anyChanged |= changed[s];
-    }
-
-    if (anyChanged || tick) {
-        for (uint8_t s = 0; s < N_SWITCHES; s++) {
-            printReading(switches[s], codes[s], changed[s]);
-            switches[s].lastCode = codes[s];
+        uint8_t code = readDebouncedCode(switches[s].pins);
+        if (code != switches[s].lastCode) {
+            printReading(switches[s], code);
+            switches[s].lastCode = code;
         }
-        Serial.println();
-        lastPrint = now;
     }
 
     if (resendButtonPressed()) {
@@ -168,42 +160,49 @@ void loop() {
         Serial.print("* Swing: ");
         Serial.println(digitalRead(SWING_PIN) == LOW ? "ON" : "OFF");
     }
+
+    Serial.flush();
 }
 
-// Active-high (external pull-down on the bench — button to +3.3V, not GND).
-// Simple debounce: require the line to still read pressed after
-// RESEND_DEBOUNCE_MS, then wait for release before returning true again
-// (edge-triggered, not level-triggered).
-bool resendButtonPressed() {
-    static bool wasPressed = false;
-    bool isPressed = (digitalRead(RESEND_PIN) == HIGH);
+// --- PCINT: arm every input line, all three PCI groups -----------------
 
-    if (isPressed && !wasPressed) {
-        delay(RESEND_DEBOUNCE_MS);
-        isPressed = (digitalRead(RESEND_PIN) == HIGH);
-    }
+void enablePCINT() {
+    cli();
+    // Fan: PB2/3/4 -> PCINT2/3/4, group PCIE0.
+    PCICR  |= _BV(PCIE0);
+    PCMSK0 |= _BV(PCINT2) | _BV(PCINT3) | _BV(PCINT4);
 
-    bool triggered = isPressed && !wasPressed;
-    wasPressed = isPressed;
-    return triggered;
+    // Mode: PC0/1/2 -> PCINT8/9/10, group PCIE1.
+    PCICR  |= _BV(PCIE1);
+    PCMSK1 |= _BV(PCINT8) | _BV(PCINT9) | _BV(PCINT10);
+
+    // Temp: PD4/5/6 -> PCINT20/21/22. Resend: PD2 -> PCINT18.
+    // Swing: PD7 -> PCINT23. All group PCIE2.
+    PCICR  |= _BV(PCIE2);
+    PCMSK2 |= _BV(PCINT20) | _BV(PCINT21) | _BV(PCINT22)
+            | _BV(PCINT18) | _BV(PCINT23);
+    sei();
 }
 
-// INPUT_PULLUP, active-low (per §4: toggle to GND, no external resistor).
-// Simple level debounce: report a change only after it holds for
-// RESEND_DEBOUNCE_MS (reused here; toggles don't need a separate constant).
-bool swingChanged() {
-    static bool lastState = HIGH;
-    bool state = digitalRead(SWING_PIN);
+ISR(PCINT0_vect) { wakeFlag = true; }
+ISR(PCINT1_vect) { wakeFlag = true; }
+ISR(PCINT2_vect) { wakeFlag = true; }
 
-    if (state != lastState) {
-        delay(RESEND_DEBOUNCE_MS);
-        state = digitalRead(SWING_PIN);
-        if (state == lastState) return false;
-        lastState = state;
-        return true;
-    }
-    return false;
+// Power-down sleep. Wakes on any armed PCINT (any input-line edge,
+// including the inter-detent float glitch — that's fine, it only ever
+// causes an extra wake, never a missed one).
+void sleepUntilWake() {
+    set_sleep_mode(SLEEP_MODE_PWR_DOWN);
+    cli();
+    wakeFlag = false;
+    sleep_enable();
+    sei();
+    sleep_cpu();
+    // Execution resumes here after any PCINTx_vect.
+    sleep_disable();
 }
+
+// --- Reading -------------------------------------------------------------
 
 uint8_t readCodeOnce(const uint8_t pins[N_BITS]) {
     uint8_t code = 0;
@@ -236,8 +235,43 @@ uint8_t readDebouncedCode(const uint8_t pins[N_BITS]) {
     return stable;
 }
 
-void printReading(const Switch &sw, uint8_t code, bool changed) {
-    Serial.print(changed ? "* " : "  ");
+// Active-high (external pull-down on the bench — button to +3.3V, not GND).
+// Simple debounce: require the line to still read pressed after
+// BUTTON_DEBOUNCE_MS, then wait for release before returning true again
+// (edge-triggered, not level-triggered).
+bool resendButtonPressed() {
+    static bool wasPressed = false;
+    bool isPressed = (digitalRead(RESEND_PIN) == HIGH);
+
+    if (isPressed && !wasPressed) {
+        delay(BUTTON_DEBOUNCE_MS);
+        isPressed = (digitalRead(RESEND_PIN) == HIGH);
+    }
+
+    bool triggered = isPressed && !wasPressed;
+    wasPressed = isPressed;
+    return triggered;
+}
+
+// INPUT_PULLUP, active-low (per §4: toggle to GND, no external resistor).
+// Simple level debounce: report a change only after it holds for
+// BUTTON_DEBOUNCE_MS.
+bool swingChanged() {
+    static bool lastState = HIGH;
+    bool state = digitalRead(SWING_PIN);
+
+    if (state != lastState) {
+        delay(BUTTON_DEBOUNCE_MS);
+        state = digitalRead(SWING_PIN);
+        if (state == lastState) return false;
+        lastState = state;
+        return true;
+    }
+    return false;
+}
+
+void printReading(const Switch &sw, uint8_t code) {
+    Serial.print("* ");
     Serial.print(sw.name);
     Serial.print(": ");
     for (int i = N_BITS - 1; i >= 0; i--) {

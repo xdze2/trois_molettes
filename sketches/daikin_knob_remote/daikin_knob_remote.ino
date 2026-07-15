@@ -51,7 +51,7 @@
 #define DAIKIN_SECTION_GAP 35000
 
 // ---------------------------------------------------------------------------
-// Rotary switches — Fan + Mode (see howtos/09_rotary_switches_poll_test.md)
+// Rotary switches — Fan + Mode (see howtos/09_rotary_switches_wake_test.md)
 // ---------------------------------------------------------------------------
 struct Switch {
     const char *name;
@@ -150,7 +150,7 @@ static void send_daikin(const uint8_t frame[DAIKIN_FRAME_LEN]) {
 }
 
 // ---------------------------------------------------------------------------
-// Switch reading — verbatim pattern from rotary_switches_poll_test.ino
+// Switch reading — verbatim pattern from rotary_switches_wake_test.ino
 // ---------------------------------------------------------------------------
 uint8_t readCodeOnce(const uint8_t pins[N_BITS]) {
     uint8_t code = 0;

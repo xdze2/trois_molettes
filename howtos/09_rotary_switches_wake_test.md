@@ -1,4 +1,4 @@
-# Fan + Mode Switches — Bench Readout Test
+# All Rotary Switches — Sleep/Wake Bench Test
 
 Bench notes from testing the diode-encoded Fan speed and Mode rotary switches
 together, after wiring them per [05_electronics_circuit.md](../05_electronics_circuit.md).
@@ -7,13 +7,13 @@ See [03_rs1010_readout.md](03_rs1010_readout.md) for the original single-switch
 
 ## Sketch
 
-[sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino](../sketches/rotary_switches_poll_test/rotary_switches_poll_test.ino)
+[sketches/rotary_switches_wake_test/rotary_switches_wake_test.ino](../sketches/rotary_switches_wake_test/rotary_switches_wake_test.ino)
 
-Polls all three switches (Fan, Mode, Temp) plus Resend and Swing, debounces
-each independently, and prints bits + decoded meaning on any change or every
-5 s heartbeat. No sleep, no IRQ — pure polling, for wiring/mapping bring-up
-only. This is the one sketch to reach for when bringing up or re-checking
-any GPIO input in the design.
+Covers all three switches (Fan, Mode, Temp) plus Resend and Swing. Sleeps in
+`SLEEP_MODE_PWR_DOWN` and wakes on any edge via PCINT (all three PCI groups
+armed — see §5 of the circuit doc); on wake it debounces and prints only
+what changed. Nothing is printed while idle. This is the one sketch to reach
+for when bringing up or re-checking any GPIO input in the design.
 
 ```
 uv run --version   # Arduino upload as usual, then:
@@ -142,9 +142,6 @@ uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -f SEND -f SENT
   trusting the readout. Temp reuses the same SR16 part as Fan, so the same
   off-by-one diode shift is plausible until proven otherwise. Then wire it
   into `daikin_knob_remote` in place of `TEMP_DEFAULT_C`.
-- **Sleep mode test**: repeat the above on `rs1010_wiring_test`-style
-  `SLEEP_MODE_PWR_DOWN` + PCINT wake, across all three switches' code lines
-  plus Send/Swing, per [05_electronics_circuit.md §5](../05_electronics_circuit.md).
 - **Battery test**: run from the TP4056 + cell instead of USB power, per
   [07_battery_and_power.md](../07_battery_and_power.md), to confirm reads stay
   reliable and sleep current matches the budget on real battery voltage (not
