@@ -42,7 +42,7 @@ R_base = 2.2 kΩ  (GPIO at 3.3V: 3.3V / 2.2kΩ ≈ 1.5 mA into base, hFE×Ic hea
 
 **Transistor:** S9013 H331 (Ic_max 500 mA, TO-92) — well within ratings.
 
-![Single LED circuit](schematics/ir_led_single.png)
+![Single LED circuit](../schematics/ir_led_single.png)
 
 Current flows left → right: **3.3 V → 22 Ω → LED → transistor → GND**.
 
@@ -54,7 +54,7 @@ Current flows left → right: **3.3 V → 22 Ω → LED → transistor → GND**
 
 **S9013 (NPN, TO-92, flat face forward): E – B – C** (left to right, per datasheet):
 
-![S9013 TO-92 pinout](images/transistor_ss9013.png)
+![S9013 TO-92 pinout](../images/transistor_ss9013.png)
 
 - **Emitter (E, left)** → **GND**.
 - **Base (B, centre)** → through R_base (2.2 kΩ) to the **GPIO**.
@@ -86,7 +86,7 @@ R_base (3× LEDs): Ib needed = Ic / hFE_min = 300 mA / 144 ≈ 2.1 mA
 > for saturation. The transistor stays in active region, Vce rises to ~0.8 V,
 > and LED current is lower than calculated.
 
-![3-LED circuit with bulk cap](schematics/ir_led_3x.png)
+![3-LED circuit with bulk cap](../schematics/ir_led_3x.png)
 
 ### Angular coverage
 

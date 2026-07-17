@@ -3,7 +3,7 @@
 Bench notes for verifying the IR LED circuit using the receiver as a loopback
 and the oscilloscope to observe both the raw carrier and the demodulated output.
 
-See [06_IR_LED_wiring.md](../06_IR_LED_wiring.md) for the circuit design, and
+See [06_IR_LED_wiring.md](../docs/06_IR_LED_wiring.md) for the circuit design, and
 [04_ir_receiver_signal.md](04_ir_receiver_signal.md) for the receiver wiring.
 
 ## Step 0 — Sanity check with a visible LED (do this first)
@@ -26,7 +26,7 @@ Expected:
 If the red LED stays **always on** while D13 blinks, the transistor wiring is
 wrong — almost certainly a **pinout mix-up**. The S9013 datasheet pinout is
 **E – B – C** (centre is base), not E – C – B as some references and an earlier
-version of [06_IR_LED_wiring.md](../06_IR_LED_wiring.md) claimed. With base and
+version of [06_IR_LED_wiring.md](../docs/06_IR_LED_wiring.md) claimed. With base and
 collector swapped, current flows VCC → R → LED → base → emitter → GND through
 the B-E diode permanently, and the GPIO toggling does almost nothing visible.
 
@@ -50,7 +50,7 @@ No Daikin protocol needed — just a single burst every second from a minimal sk
 ![Bench — IR LED circuit and receiver on breadboard, Pro Mini connected via USB](images/PXL_20260623_154933929_web.jpg)
 
 - Left breadboard: TSOP38238 receiver
-- Main breadboard: IR LED + S9013 transistor circuit (see [06_IR_LED_wiring.md](../06_IR_LED_wiring.md))
+- Main breadboard: IR LED + S9013 transistor circuit (see [06_IR_LED_wiring.md](../docs/06_IR_LED_wiring.md))
 - ATmega328PB Pro Mini connected via USB–serial adapter
 - CH1 (scope, black clip): TSOP38238 OUT pin
 - CH2 (scope, grey clip): IR LED GPIO input (D3, base side of transistor circuit)

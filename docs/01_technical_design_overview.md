@@ -65,7 +65,7 @@ Plus Send (+ optional Swing) button GPIO ≈ **10–11 input pins**, all interru
 
 ### Still to validate on the bench
 
-PCINT both-edge wake from `SLEEP_MODE_PWR_DOWN` is **validated on the RS1010** (10 ms settle window, see [howtos/03_rs1010_readout.md](howtos/03_rs1010_readout.md)) — every line wakes on either edge, including non-zero→non-zero code changes. What remains is the **sleep-current measurement** on the assembled board (power LED removed) to fix the cell size.
+PCINT both-edge wake from `SLEEP_MODE_PWR_DOWN` is **validated on the RS1010** (10 ms settle window, see [howtos/03_rs1010_readout.md](../howtos/03_rs1010_readout.md)) — every line wakes on either edge, including non-zero→non-zero code changes. What remains is the **sleep-current measurement** on the assembled board (power LED removed) to fix the cell size.
 
 ---
 

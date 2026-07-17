@@ -1,7 +1,7 @@
 # All Rotary Switches — Sleep/Wake Bench Test
 
 Bench notes from testing the diode-encoded Fan speed and Mode rotary switches
-together, after wiring them per [05_electronics_circuit.md](../05_electronics_circuit.md).
+together, after wiring them per [05_electronics_circuit.md](../docs/05_electronics_circuit.md).
 See [03_rs1010_readout.md](03_rs1010_readout.md) for the original single-switch
 (Mode) bring-up notes this test builds on.
 
@@ -61,7 +61,7 @@ reading, not a mid-rotation transient).
 
 Root cause: the Mode code lines were physically wired to the wrong GPIOs —
 **A0 and A2 were swapped** relative to the pin table in
-[05_electronics_circuit.md §1](../05_electronics_circuit.md). Fixed by
+[05_electronics_circuit.md §1](../docs/05_electronics_circuit.md). Fixed by
 reordering the pins array to match the actual wiring, rather than touching
 the board:
 
@@ -114,7 +114,7 @@ are live.
 There is **no Send button** in this sketch — every change of either knob
 immediately builds a frame via `daikin_build_frame()` and transmits it. The
 switch position *is* the state, matching the stateless-device model from
-[11_serial_remote_app.md](../11_serial_remote_app.md). An earlier version gated
+[11_serial_remote_app.md](../docs/11_serial_remote_app.md). An earlier version gated
 transmission behind a Send-button press edge; the button wiring was never
 actually connected on this bench so nothing was ever sent. Removing the
 button requirement and transmitting straight off the change-detect in the
@@ -143,6 +143,6 @@ uv run tools/serial_capture.py /dev/cu.usbserial-XXXX -f SEND -f SENT
   off-by-one diode shift is plausible until proven otherwise. Then wire it
   into `daikin_knob_remote` in place of `TEMP_DEFAULT_C`.
 - **Battery test**: run from the TP4056 + cell instead of USB power, per
-  [07_battery_and_power.md](../07_battery_and_power.md), to confirm reads stay
+  [07_battery_and_power.md](../docs/07_battery_and_power.md), to confirm reads stay
   reliable and sleep current matches the budget on real battery voltage (not
   a regulated bench supply).

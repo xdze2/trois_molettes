@@ -16,19 +16,19 @@ Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `D
 
 ## Files
 
-| File                                                               | Description                                                                                                      |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| [00_specifications.md](00_specifications.md)                       | Full project requirements: controls, feedback, power, enclosure                                                  |
-| [01_technical_design_overview.md](01_technical_design_overview.md) | Design summary: choices, trade-offs, and the open decisions (readout/wake, sleep current)                        |
-| [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md)     | Daikin IR protocol (frame structure, parameters, library usage, control mapping)                                 |
-| [02_BOM_prototype.csv](02_BOM_prototype.csv)                       | Bill of materials with prices and sourcing notes                                                                 |
-| [03_microcontroller_choice.md](03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
-| [04_rotary_switch_choice.md](04_rotary_switch_choice.md)           | Rotary switch families compared, part selection, decision matrix                                                 |
-| [05_electronics_circuit.md](05_electronics_circuit.md)             | Input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence                         |
-| [06_IR_LED_wiring.md](06_IR_LED_wiring.md)                         | IR emitter: TSAL6200 + S9013 driver, single/3× wiring, bulk cap, wide-angle vs range, mounting strategies        |
-| [07_battery_and_power.md](07_battery_and_power.md)                 | Power architecture: Li-Po + TP4056, sleep-current budget, Pro Mini battery mods, charging                        |
-| [10_software_architecture.md](10_software_architecture.md)         | Firmware layers: portable Daikin frame builder, AVR HAL (Timer2/sleep), Linux mock                               |
-| [11_serial_remote_app.md](11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
+| File                                                                    | Description                                                                                                       |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [00_specifications.md](docs/00_specifications.md)                       | Full project requirements: controls, feedback, power, enclosure                                                  |
+| [01_technical_design_overview.md](docs/01_technical_design_overview.md) | Design summary: choices, trade-offs, and the open decisions (readout/wake, sleep current)                        |
+| [01_IR_protocol_and_mapping.md](docs/01_IR_protocol_and_mapping.md)     | Daikin IR protocol (frame structure, parameters, library usage, control mapping)                                 |
+| [02_BOM_prototype.csv](docs/02_BOM_prototype.csv)                       | Bill of materials with prices and sourcing notes                                                                 |
+| [03_microcontroller_choice.md](docs/03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
+| [04_rotary_switch_choice.md](docs/04_rotary_switch_choice.md)           | Rotary switch families compared, part selection, decision matrix                                                 |
+| [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence                         |
+| [06_IR_LED_wiring.md](docs/06_IR_LED_wiring.md)                         | IR emitter: TSAL6200 + S9013 driver, single/3× wiring, bulk cap, wide-angle vs range, mounting strategies        |
+| [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: Li-Po + TP4056, sleep-current budget, Pro Mini battery mods, charging                        |
+| [10_software_architecture.md](docs/10_software_architecture.md)         | Firmware layers: portable Daikin frame builder, AVR HAL (Timer2/sleep), Linux mock                               |
+| [11_serial_remote_app.md](docs/11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
 
 ## Bench logs (build journal)
 
@@ -47,13 +47,14 @@ were actually proven.
 | [06_ir_rx_dump.md](howtos/06_ir_rx_dump.md)                                     | Capturing real ARC466A33 frames with the ATmega (PCINT delta buffer); checked-in reference dump         |
 | [07_verify_frame_against_capture.md](howtos/07_verify_frame_against_capture.md) | Diffing `daikin_build_frame()` vs the capture — found 5 wrong fixed bytes breaking the checksums        |
 | [08_daikin_fan_toggle.md](howtos/08_daikin_fan_toggle.md)                       | **Working end-to-end:** full frame over IR, AC beeps & changes fan speed; gap-timing + long-delay fixes |
+| [09_rotary_switches_wake_test.md](howtos/09_rotary_switches_wake_test.md)       | All three diode-encoded switches together: multi-switch sleep/wake bench test on the assembled inputs   |
 
 ## Hardware summary
 
-- **MCU:** ATmega328P (Pro Mini 3.3 V) — on hand, sufficient for this design, ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 were evaluated for lower µA-class sleep; see [03_microcontroller_choice.md](03_microcontroller_choice.md))
+- **MCU:** ATmega328P (Pro Mini 3.3 V) — on hand, sufficient for this design, ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 were evaluated for lower µA-class sleep; see [03_microcontroller_choice.md](docs/03_microcontroller_choice.md))
 - **IR:** TSAL6200 940 nm LED (×1 or ×3 fan) + S9013 NPN transistor driver · 38 kHz carrier via the 328P Timer2 (OC2B, pin D3) · Daikin ARC466A33 frame ported from the documented format and validated against the real unit
 - **Inputs:** 3 rotary selectors (all 1-pole) + Send button (+ optional Swing toggle)
-- **Rotary readout:** each switch diode-encoded into a small binary code on its own GPIO; the code lines double as both-edge wake interrupts (no ADC, no 2-pole, no analog rail) — see [05_electronics_circuit.md](05_electronics_circuit.md)
+- **Rotary readout:** each switch diode-encoded into a small binary code on its own GPIO; the code lines double as both-edge wake interrupts (no ADC, no 2-pole, no analog rail) — see [05_electronics_circuit.md](docs/05_electronics_circuit.md)
 - **Feedback:** single TX indicator LED (knob positions are the state)
 - **Power:** Li-Po 3.7 V · TP4056 USB-C charging module · MCU in `SLEEP_MODE_PWR_DOWN` between transmissions, woken by PCINT edge (6-month → multi-year battery target — bench-validation pending)
 - **BOM cost:** < €35
@@ -69,7 +70,7 @@ were actually proven.
 
 Integration is underway. Planned in three phases, each de-risking the next:
 
-1. **Python serial app** ([11_serial_remote_app.md](11_serial_remote_app.md)) — a Textual
+1. **Python serial app** ([11_serial_remote_app.md](docs/11_serial_remote_app.md)) — a Textual
    TUI soft front-panel driving the AC over serial → 328P → IR. Goal: exercise the **full
    control mapping** (every Fan/Mode/Temp/Swing combination) from the keyboard and shake
    out mapping bugs while it's still just text — before committing any of it to physical knobs.

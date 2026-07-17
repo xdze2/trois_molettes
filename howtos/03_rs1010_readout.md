@@ -1,9 +1,9 @@
 # RS1010 Readout — Wiring Test & Debounce
 
 Bench notes from testing the diode-encoded RS1010 rotary switch readout.
-See [05_electronics_circuit.md](../05_electronics_circuit.md) for the full design rationale
+See [05_electronics_circuit.md](../docs/05_electronics_circuit.md) for the full design rationale
 (§2 diode encoding, §3 pull-down / leakage, §5 wake + debounce) and
-[07_battery_and_power.md](../07_battery_and_power.md) for the sleep-current budget.
+[07_battery_and_power.md](../docs/07_battery_and_power.md) for the sleep-current budget.
 
 ![Bench setup](../images/photos/PXL_20260622_125033774_web.jpg)
 
@@ -21,7 +21,7 @@ Per §2 / §3 of the circuit doc:
 For the bench test, 3 code lines are wired to **D10, D11, D12** on the ATmega328PB
 (= PB2/PB3/PB4 → PCINT2/3/4, all in PCI group 0). 3 lines covers all three
 selectors in the final design (Fan 8-pos, Mode 5-pos, Temp 8-pos — see
-[00_specifications.md §4](../00_specifications.md)); each needs exactly 3 bits.
+[00_specifications.md §4](../docs/00_specifications.md)); each needs exactly 3 bits.
 
 ## GPIO config: `INPUT`, not `INPUT_PULLUP`
 
@@ -35,7 +35,7 @@ pinMode(CODE_PINS[i], INPUT);
 `INPUT_PULLUP` would enable the chip's ~20–50 kΩ internal pull-up, which fights
 the 1 MΩ external pull-down (the pull-up wins by ~50×) — every line would read
 HIGH all the time, and ~165 µA per line would leak straight into the
-[sleep-current budget](../07_battery_and_power.md).
+[sleep-current budget](../docs/07_battery_and_power.md).
 
 ## The inter-detent zero glitch
 
@@ -101,13 +101,13 @@ and goes back to sleep.
 - **All three selectors on 3 lines each.** This bench tested one switch on 3 code lines.
   The final design keeps every selector at 3 bits (Fan 8-pos, Mode 5-pos, Temp 8-pos),
   so no 4th line is needed — confirm debounce holds across all positions of each switch
-  when wired to its own GPIO group ([05 §1](../05_electronics_circuit.md)).
+  when wired to its own GPIO group ([05 §1](../docs/05_electronics_circuit.md)).
 
 - **Pull-down value vs. leakage.** 1 MΩ was chosen to keep sleep leakage in the µA
   range. On the ATmega328P the sleep floor is dominated by the Pro Mini LDO quiescent
   (~75 µA), so the ~3.3 µA/line pull-down leakage sits comfortably under it — but still
   validate that 1 MΩ gives reliable reads before treating it as settled. See the budget
-  in [07_battery_and_power.md §3](../07_battery_and_power.md).
+  in [07_battery_and_power.md §3](../docs/07_battery_and_power.md).
 
 ## Sketches
 

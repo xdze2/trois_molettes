@@ -1,8 +1,9 @@
 # daikin_remote
 
 Design notes and hardware docs for a Daikin AC IR remote built on an ATmega328P
-Pro Mini at 3.3 V. The repo is mostly Markdown design docs (`00_*`–`10_*`), with
-generated circuit schematics.
+Pro Mini at 3.3 V. The repo is mostly Markdown design docs (`docs/00_*`–`11_*`)
+plus hardware bring-up bench logs (`howtos/`), with generated circuit schematics.
+Only `README.md` and this file live at the repo root.
 
 ## Schematics workflow
 
