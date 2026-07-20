@@ -4,15 +4,14 @@ A **test/demo** soft front-panel for the AC: a [Textual](https://textual.textual
 terminal UI that mirrors the physical controls (Fan / Mode / Temp / Send) and drives
 the **real** Daikin unit over USB serial → the ATmega328P → its IR LED.
 
-This is a bench tool for exercising the IR path from a keyboard, **not a replacement**
+This is a bench tool for exercising the IR path from a keyboard, not a replacement
 for the hardware remote. It reuses the exact, validated transmit path:
 `daikin_build_frame()` → `send_daikin()` → Timer2 38 kHz carrier → IR LED (proven
 end-to-end in [howtos/08_daikin_fan_toggle.md](../howtos/08_daikin_fan_toggle.md)).
 
-**Keep it simple.** The 328P stays stateless — exactly like the future knob firmware
-will be: read inputs, build a frame, transmit. Python owns the UI state; the serial
-link is a single `SEND <fields>` line carrying a full snapshot. No state machine on
-either side of the wire.
+The 328P stays stateless — like the future knob firmware: read inputs, build a
+frame, transmit. Python owns the UI state; the serial link is a single
+`SEND <fields>` line carrying a full snapshot. No state machine on either side.
 
 ---
 
@@ -33,15 +32,15 @@ either side of the wire.
 
 **Division of responsibility — stateless 328P, stateful Python:**
 
-- The **328P owns the IR protocol** and nothing else: frame bytes, fixed/reserved bytes,
-  the three section checksums, the 3-section pulse structure, the real-capture gap
-  timings. Already written and validated in C — must not be duplicated in Python.
-- The **328P holds no state between lines.** Each `SEND` line carries a full snapshot
+- The 328P owns the IR protocol and nothing else: frame bytes, fixed/reserved bytes,
+  the three section checksums, the pulse structure, the real-capture gap timings —
+  already written and validated in C, must not be duplicated in Python.
+- The 328P holds no state between lines. Each `SEND` line carries a full snapshot
   (fan, mode, temp, swing); the firmware parses, builds the frame, transmits, replies.
-  This mirrors what the future knob firmware does: knobs *are* the state, the MCU just
-  reads them on Send-press.
-- **Python owns the UI state.** Widgets are the source of truth; pressing **Send**
-  ships the current widget snapshot in one line.
+  This mirrors the future knob firmware: knobs *are* the state, the MCU just reads
+  them on Send-press.
+- Python owns the UI state. Widgets are the source of truth; pressing **Send** ships
+  the current widget snapshot in one line.
 
 This matches the stateless-interface principle of the hardware
 ([00_specifications.md §3](00_specifications.md)): the controls *are* the state.
@@ -56,8 +55,8 @@ This matches the stateless-interface principle of the hardware
 | 328P as dumb modem | Python builds 35 bytes, streams raw | Duplicates checksum/fixed-byte logic in Python — re-opens bugs howto 07 already closed |
 | PC IR dongle, no 328P | Python + USB-IR hardware | Different emitter, different timing path — throws away the proven chain |
 
-The chosen split means the **only new firmware** is a line parser around code that already
-works. No protocol re-derivation.
+The chosen split means the only new firmware is a line parser around code that
+already works. No protocol re-derivation.
 
 ---
 
@@ -118,26 +117,26 @@ same inputs.
 A near-trivial refactor of [sketches/daikin_fan_toggle](../sketches/daikin_fan_toggle):
 
 - **Keep verbatim:** Timer2 setup, `ir_mark` / `ir_space` / `ir_space_long`,
-  `send_byte`, `send_section`, `send_daikin`, all the protocol timing constants. This
-  is the validated IR path — do not touch it.
+  `send_byte`, `send_section`, `send_daikin`, all the protocol timing constants —
+  this is the validated IR path, do not touch it.
 - **Replace `loop()`:** instead of toggling fan every 30 s, read a line from `Serial`.
   - `PING` → reply `PONG`.
-  - `SEND fan=… mode=… temp=… swing=…` → parse into **local** variables, call
+  - `SEND fan=… mode=… temp=… swing=…` → parse into local variables, call
     `daikin_build_frame(fan, mode, temp, swing)` + `send_daikin()`, reply
     `SENT <hex>`. No module-static state.
   - Anything else, or any missing/out-of-range field → `ERR <reason>`.
 - **Bump baud to 115200.** `daikin_fan_toggle` runs 4800; for a responsive TUI use
-  115200. This board is proven at 115200 — [sketches/ir_rx_dump](../sketches/ir_rx_dump)
-  does exactly that, clearing the prescaler at runtime (`CLKPR = 0` in `setup()`) so
-  the chip runs at nominal 8 MHz regardless of the CKDIV8 fuse state. Copy that idiom.
+  115200, proven on this board by [sketches/ir_rx_dump](../sketches/ir_rx_dump) —
+  clear the prescaler at runtime (`CLKPR = 0` in `setup()`) so the chip runs at
+  nominal 8 MHz regardless of the CKDIV8 fuse state. Copy that idiom.
 - **Reuse the symlink trick:** `daikin_frame.{h,cpp}` are symlinked from `firmware/`,
   like the other sketches, so the frame builder stays single-source. Its signature
   may need to shift from a struct pointer to plain args
-  (`daikin_build_frame(fan, mode, temp, swing, buf)`) — a trivial change that also
-  prepares it for the knob firmware.
+  (`daikin_build_frame(fan, mode, temp, swing, buf)`), which also prepares it for
+  the knob firmware.
 
 Parsing stays tiny: `strtok` on space then on `=`, a small switch per key, no dynamic
-allocation. No command table, no state machine — there is no protocol logic to add.
+allocation. No command table, no state machine.
 
 ---
 
@@ -154,7 +153,7 @@ existing uv convention ([schematics/](../schematics/), [tools/serial_capture.py]
 | `backend.py` | one `Backend` protocol + two impls (`SerialBackend`, `MockBackend`) | both |
 | `app.py` | Textual UI: Fan / Mode / Temp / Swing widgets + Send + TX log pane | via backend |
 
-The **mock backend** lets the entire UI be developed and demoed with no board plugged
+The mock backend lets the entire UI be developed and demoed with no board plugged
 in (`--mock`), then switched to the real serial port with a flag. It also makes
 `protocol.py` testable in CI without hardware. Keep it one file — three backend
 modules is overkill for a demo tool.

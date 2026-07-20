@@ -61,7 +61,7 @@ Method: `setMode(uint8_t)` / `getMode()`
 | Minimum | 10 °C (`kDaikinMinTemp`) |
 | Maximum | 32 °C (`kDaikinMaxTemp`) |
 | Step | 1 °C |
-| Useful range for this project | 16–26 °C |
+| Range used by this project | 14–34 °C, 2 °C steps (see [00_specifications.md §4.3](00_specifications.md#43-temperature--8-position-rotary-sr16-mode-dependent-mapping)) |
 
 Method: `setTemp(uint8_t)` / `getTemp()`
 
@@ -146,99 +146,6 @@ void setup() {
 
 ---
 
-## 5. Tangible Interface Mapping
-
-Design principle: **stateless physical controls**. Every knob and switch directly encodes the current AC state — there is no hidden software state. What you see (knob position) is what the AC is set to.
-
-Knobs are ordered by frequency of use: Fan (daily) → Mode (seasonal) → Temperature (set-and-forget).
-
-### 5.1 Control layout
-
-```
-┌─────────────────────────────────────┐
-│                                     │
-│   [FAN]      [MODE]     [TEMP]      │
-│    knob       knob       knob       │
-│                                     │
-│   [PWR]  [ECO]  [SWING]  [RESEND]  │
-│                                     │
-│                          ◉ IR TX    │
-└─────────────────────────────────────┘
-```
-
-### 5.2 Fan speed / Power selector (rotary, 6 positions)
-
-This is the primary daily control. Position 0 is OFF.
-
-| Position | Label | AC state sent |
-|---|---|---|
-| 0 | OFF | `setPower(false)` |
-| 1 | 1 | `setPower(true)`, `setFan(kDaikinFanMin)` |
-| 2 | 2 | `setPower(true)`, `setFan(2)` |
-| 3 | 3 | `setPower(true)`, `setFan(kDaikinFanMed)` |
-| 4 | 4 | `setPower(true)`, `setFan(4)` |
-| 5 | MAX | `setPower(true)`, `setFan(kDaikinFanMax)` |
-
-Feedback: none per position — the knob position is the state. Only the shared TX LED flashes on send.
-
-Note: `kDaikinFanAuto` is not exposed — it adds a position and is rarely used in practice.
-
-### 5.3 Mode selector (rotary, 4 positions)
-
-Set seasonally. Does not include OFF (handled by the fan knob).
-
-| Position | Label | AC state sent |
-|---|---|---|
-| 0 | FAN | `setMode(kDaikinFan)` |
-| 1 | COOL | `setMode(kDaikinCool)` |
-| 2 | HEAT | `setMode(kDaikinHeat)` |
-| 3 | DRY | `setMode(kDaikinDry)` |
-
-Feedback: none per position — the knob position is the state.
-
-Note: the 8404-3C on hand is 4 positions — matches exactly (FAN / COOL / HEAT / DRY). If Dry is dropped, 3 positions suffice.
-
-### 5.4 Temperature selector (rotary, 11 positions)
-
-| Position | °C sent |
-|---|---|
-| 0 | 16 |
-| 1 | 17 |
-| … | … |
-| 10 | 26 |
-
-A 2P12T switch bridged to 11 positions covers this range exactly. One pole wired as a resistor ladder on one analog pin; the second pole provides the alternating-contact wake edge.
-
-If the 11-position selector is too large for the enclosure, fall back to a **10-position switch** mapped to 16–25 °C (dropping 26 °C) — see [04_rotary_switch_choice.md](04_rotary_switch_choice.md#temperature-range-with-10-positions). An EC11 incremental encoder is **not** a valid fallback: its output is relative, requiring stored software state, which violates the stateless principle and loses position across deep sleep / battery removal.
-
-Feedback: none per position — the knob position is the state.
-
-### 5.5 Push buttons
-
-| Button | Function | IR call |
-|---|---|---|
-| PWR | Toggle Powerful mode | `setPowerful(!state)` |
-| ECO | Toggle Econo mode | `setEcono(!state)` |
-| SWING | Toggle vertical swing | `setSwingVertical(!state)` |
-| RESEND | Retransmit full state | `send()` |
-
-Powerful and Econo are mutually exclusive — activating one clears the other.
-
-The button toggle states (PWR / ECO / SWING) are the **only** internal software state in the device — they have no absolute physical position to read back, unlike the knobs. Every send flashes the shared TX LED.
-
-Note: Quiet is a fan speed value (`kDaikinFanQuiet`), not a boolean flag. It is not exposed as a button — it would conflict with the fan knob's stateless readout.
-
-### 5.6 Send trigger
-
-The firmware sends a new IR frame **on every control change** (knob moved to a new position, button pressed). No "confirm" step needed.
-
-The RESEND button re-transmits the current state without changing anything — recovers from missed commands.
-
-### 5.7 LED summary
-
-| Zone | Count | Type | Purpose |
-|---|---|---|---|
-| IR TX | 1 | Simple LED | Blinks on every send; confirms battery is live |
-| **Total** | **1** | | |
-
-A single TX indicator LED, direct GPIO drive (no transistor needed at indicator current). The per-position WS2812B chain was dropped — incompatible with the 6-month battery target (~15 mA quiescent for ~25 LEDs) and redundant with the stateless "knob position = state" principle. See [01_technical_design_overview.md §5](01_technical_design_overview.md).
+For the current control mapping (Fan/Mode/Temp knob positions → AC state, Send/Swing
+buttons, LED feedback), see [00_specifications.md §4](00_specifications.md#4-controls--functions)
+and [05_electronics_circuit.md](05_electronics_circuit.md).

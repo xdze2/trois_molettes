@@ -2,11 +2,8 @@
 
 ## 1. Motivation
 
-Two goals:
 1. Build something cool and learn by doing it.
-2. Produce a tangible, simple, robust, usable, low-complexity, screenless, app-less, open-source, and repairable AC control device.
-
-The AC unit's original remote is a black box — fragile, app-dependent, and not repairable. This project replaces it with something physical, honest, and long-lived.
+2. Replace the original remote — a fragile, app-dependent, non-repairable black box — with something tangible, simple, robust, low-complexity, screenless, app-less, open-source, and repairable.
 
 ## 2. Target AC Unit
 
@@ -20,9 +17,7 @@ The WiFi adapter and REST API are explicitly out of scope. This device communica
 
 ## 3. Core Design Principle — Stateless Interface
 
-**The physical position of every knob and button reflects the full state of the system.**
-
-There is no hidden internal state. No screen. No memory to synchronize. If you look at the device, you know what it is doing (or what it will do on next send). This is the central design constraint that drives all interface decisions.
+**The physical position of every knob and button reflects the full state of the system.** No hidden state, no screen, nothing to synchronize — look at the device and you know what it will send next. This drives every interface decision below.
 
 Implications:
 - All controls are hardware (rotary switches, physical buttons) — not virtual or touch-based.
@@ -89,20 +84,14 @@ Support depends on what the FTXM20N2V1B accepts via IR — to be confirmed.
 
 ## 5. Feedback
 
-The only feedback mechanism is a single LED:
-
-1. **IR transmission** — brief flash when a signal is sent.
-
-No mode indicators, no temperature bar. The knob positions are the feedback.
+Single LED, brief flash on IR send. No mode indicators, no temperature bar — the knob positions are the feedback.
 
 ## 6. Power
 
-- Battery powered. Must work fully untethered.
-- **Target battery life: more than 6 months** of normal use on a single charge (goal: years).
+- Battery powered, fully untethered.
+- **Target battery life: more than 6 months** on a single charge (goal: years) — a hard constraint driving MCU selection and sleep strategy.
 - USB charging port on the enclosure.
-- Low-battery indicator is desirable (nice to have).
-
-Battery life is a hard constraint that drives microcontroller selection and sleep strategy.
+- Low-battery indicator: nice to have.
 
 ## 7. Physical Form
 

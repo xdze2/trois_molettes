@@ -1,13 +1,81 @@
 # Electronics Circuit — Input Wiring
 
-How the rotary switches and buttons are wired to the ATmega328P.
-For part selection see [04_rotary_switch_choice.md](04_rotary_switch_choice.md);
-for power and battery see [07_battery_and_power.md](07_battery_and_power.md);
+Rotary switch selection and how the switches and buttons are wired to the
+ATmega328P. For power and battery see [07_battery_and_power.md](07_battery_and_power.md);
 for the IR transmit driver see [06_IR_LED_wiring.md](06_IR_LED_wiring.md).
 
 ---
 
-## 1. Overview
+## 1. Switch selection
+
+Three rotary selectors needed:
+
+| Selector | Positions | Switch |
+|---|---|---|
+| Fan speed | 8 (Off / 1–5 / Quiet / Auto) | Alpha SR16, 1P8T |
+| Mode | 5 (Fan / Cool / Heat / Dry / Auto) | RS1010, 1P |
+| Temperature | 8 (2 °C steps, mode-dependent range) | Alpha SR16, 1P8T |
+
+All are plain 1-pole (1P) — read by per-switch diode encoding, see §3 below.
+Switches are chosen on body size and detent feel; pole count is not a constraint.
+
+### Fan speed — Alpha SR16 1P8T
+
+![Alpha SR16](../images/rotary_switch/sr16_web.png)
+
+8 positions: Off / 1 / 2 / 3 / 4 / 5 / Quiet / Auto.
+
+16 mm body, PCB through-hole, 6 mm D-shaft, 30° indexing. Widely stocked
+(Tayda, Mouser). Good detent feel, common in DIY audio/synth.
+
+### Mode — RS1010 1P
+
+![RS1010](../images/rotary_switch/rs1010_web.png)
+
+5 positions: Fan / Cool / Heat / Dry / Auto.
+
+Compact PCB through-hole, M7×0.75 bushing (~12.5 mm), 6 mm shaft, 30° indexing.
+The RS1010 goes up to 6 positions in 1P — 5 fits cleanly.
+
+### Temperature — Alpha SR16 1P8T
+
+Same part as Fan speed. 8 positions, 2 °C steps. Firmware applies a
+mode-dependent offset to map the 8 positions to the correct temperature range
+(see [00_specifications.md §4.3](00_specifications.md)).
+
+### Alternative considered — two RS1010 for temperature
+
+Two RS1010 switches (5×5 = 25 positions) would give 1 °C resolution across a
+wider range. Rejected: doubles the switch count, complicates panel layout, and
+2 °C steps cover the practical daily-use range adequately for this application.
+
+### Other switches evaluated
+
+**Grayhill 56** — same compact footprint as RS1010, up to 12 positions 1P.
+Good alternative for Mode or Temperature if RS1010 stock is short.
+
+**Alpha SR1712F** — 17 mm body, up to 8 positions. Similar feel to SR16,
+slightly larger. Usable substitute.
+
+**Alpha SR2510 / SR10010F** — 25 mm body, up to 12 positions. Overkill and bulky.
+
+**Lorlin CK1060 / CK1032** — 27.5 mm body. Very tactile, cheap, proven, but too
+large for the 80×100 mm panel with three knobs.
+
+**NKK MR-K112** — ultra-compact, up to 12 positions. Premium / industrial pricing,
+overkill for this application.
+
+**8404-3C (on hand)** — 3P4T. Only 4 positions; one short for Mode (5 needed).
+
+### Open questions
+
+- [ ] Confirm SR16 1P8T stock and price on Tayda / Mouser.
+- [ ] Confirm three knobs (two SR16 + one RS1010) fit the 80×100 mm panel face with the Send button (and optional swing toggle).
+- [ ] Confirm 6 mm D-shaft on both SR16 and RS1010 accepts the same knob cap.
+
+---
+
+## 2. Overview
 
 Three 1-pole rotary switches, diode-encoded onto independent GPIO groups.
 One push button (Resend) and one optional toggle (Swing), direct to GPIO.
@@ -19,7 +87,7 @@ ATmega328P
   PC0 PC1 PC2  ◄──  Mode       (RS1010, 5 pos, 3 code lines)
   PD4 PD5 PD6  ◄──  Temp       (SR16, 8 pos, 3 code lines)
   PD2          ◄──  Resend button      (ext. pull-down, active-high — bench
-                                         wiring; see §4)
+                                         wiring; see §5)
   PD7          ◄──  Swing toggle (opt) (pull-up, active-low)
   PD3 (OC2B)  ──►  IR LED driver  ← validated end-to-end against the real unit
   PB5          ──►  TX LED (IR flash, visible)
@@ -30,8 +98,8 @@ Pin total: 9 rotary + 2 buttons + 1 IR + 2 LEDs = **14 of 23 usable GPIO**.
 
 ### Pin assignment (with Arduino Pro Mini labels)
 
-The AVR port names are primary — the Timer2/OC2B (IR carrier) and INT0/PCINT (wake)
-reasoning depends on them. The **Arduino** column gives the silkscreen label to solder
+AVR pin names are primary — the Timer2/OC2B (IR carrier) and INT0/PCINT (wake)
+reasoning depends on them. The Arduino column is the silkscreen label to solder
 to on the Pro Mini board.
 
 | Function | AVR pin | Arduino | Dir | Notes |
@@ -45,7 +113,7 @@ to on the Pro Mini board.
 | Temp b0 | PD4 | D4 | in | |
 | Temp b1 | PD5 | D5 | in | |
 | Temp b2 | PD6 | D6 | in | |
-| Resend button | PD2 | D2 | in | INT0 — external interrupt for wake; ext. pull-down, active-high (see §4) |
+| Resend button | PD2 | D2 | in | INT0 — external interrupt for wake; ext. pull-down, active-high (see §5) |
 | Swing toggle | PD7 | D7 | in | optional |
 | IR LED driver | PD3 | D3 | out | OC2B (Timer2) — **fixed**, validated |
 | TX LED | PB5 | D13 | out | SCK — also the on-board LED on most Pro Minis |
@@ -60,20 +128,20 @@ to on the Pro Mini board.
 | 3.3 V rail | VCC | on-board LDO out | feeds MCU + switch wipers + IR driver |
 
 The TP4056 module charges the cell from USB-C and provides DW01A over-discharge /
-over-current protection; its OUT+ / OUT− feed the Pro Mini **RAW** pin (onboard LDO
+over-current protection; its OUT+ / OUT− feed the Pro Mini's RAW pin (onboard LDO
 path). Remove the Pro Mini power LED for battery use — see
 [07_battery_and_power.md §3–4](07_battery_and_power.md).
 
 ![GPIO and power assignments on the Arduino Pro Mini](../images/circuit/gpios.png)
 
-The **IR driver is fixed at PD3 (OC2B)** — the carrier is generated by Timer2 toggling
-OC2B, and this is the path validated end-to-end against the real unit
-([sketches/daikin_fan_toggle](../sketches/daikin_fan_toggle)). All other assignments are
-free and were arranged around it (Resend moved to PD2/INT0, Temp lines to PD4–PD6).
+The IR driver is fixed at PD3 (OC2B) — the carrier is generated by Timer2 toggling
+OC2B, validated end-to-end against the real unit
+([sketches/daikin_fan_toggle](../sketches/daikin_fan_toggle)). All other assignments
+are free and were arranged around it (Resend on PD2/INT0, Temp lines on PD4–PD6).
 
 ---
 
-## 2. Diode encoding
+## 3. Diode encoding
 
 Each 1-pole rotary switch has its wiper connected to **+3.3 V**.
 From each position contact, small-signal diodes route to the code lines that should
@@ -152,33 +220,32 @@ Lay out as one rail per code line, diodes from contacts to rails — clean on pe
 
 If three switches shared a bus, their codes would OR together and become unreadable
 without active scanning (MCU awake, mux selected). Independent lines keep readout
-and wake trivial, and match the stateless principle: the MCU can read the full state
-at any time after waking, without context.
+and wake trivial: the MCU can read the full state at any time after waking, without context.
 
 ---
 
-## 3. Pull-down value and sleep leakage
+## 4. Pull-down value and sleep leakage
 
-The wiper is held at +3.3 V continuously — including during sleep. This is required:
-the settled code must stay on the lines so the wake interrupt can see an edge on the
-next move. Gating the wiper supply would zero all lines and kill wake.
+The wiper is held at +3.3 V continuously, including during sleep — the settled code
+must stay on the lines so the wake interrupt can see an edge on the next move. Gating
+the wiper supply would zero all lines and kill wake.
 
-The pull-downs therefore draw current whenever a code line is HIGH. With **1 MΩ**:
-~3.3 µA per HIGH line. Typically 1–2 lines are HIGH per switch → a few µA total.
+The pull-downs therefore draw current whenever a code line is HIGH. With 1 MΩ:
+~3.3 µA per HIGH line, typically 1–2 lines HIGH per switch → a few µA total.
 
-Do **not** use `INPUT_PULLUP`: the chip's ~20–50 kΩ internal pull-up fights the
+Do not use `INPUT_PULLUP`: the chip's ~20–50 kΩ internal pull-up fights the
 external pull-down (50× stronger), lines would read HIGH always, and ~165 µA/line
 would flow.
 
-On the ATmega328P Pro Mini the sleep floor is dominated by the onboard LDO quiescent
-current (~75 µA), not the pull-down leakage — so 1 MΩ is comfortably below the floor
-and a smaller value would still be acceptable. Bench-validate that reads are still
-reliable at 1 MΩ before treating it as settled.
-See [07_battery_and_power.md §3](07_battery_and_power.md) for the full leakage budget.
+The sleep floor is dominated by the Pro Mini's onboard LDO quiescent current
+(~75 µA), not the pull-down leakage — so 1 MΩ is comfortably below the floor and a
+smaller value would still be acceptable. Bench-validate that reads stay reliable at
+1 MΩ before treating it as settled. See [07_battery_and_power.md §3](07_battery_and_power.md)
+for the full leakage budget.
 
 ---
 
-## 4. Buttons
+## 5. Buttons
 
 **Resend** (PD2 / INT0) — push button, retransmits the current knob state
 unchanged (no stored state to diverge from physical position — see
@@ -187,11 +254,9 @@ unchanged (no stored state to diverge from physical position — see
 
 The two buttons use different wiring conventions on the bench:
 
-**Resend** follows the rotary-switch convention (§2), not the internal
-pull-up scheme originally planned: the button connects the GPIO to **+3.3 V**
-when pressed, with an **external pull-down to GND** at rest. The pin is
-configured as plain `INPUT` (high-Z, no internal pull-up) — pressed = HIGH,
-released = LOW.
+**Resend** follows the rotary-switch convention (§3): the button connects the GPIO
+to +3.3 V when pressed, with an external pull-down to GND at rest. The pin is
+plain `INPUT` (high-Z, no internal pull-up) — pressed = HIGH, released = LOW.
 
 ```
 +3.3V ── button ──┬── GPIO (plain INPUT)
@@ -199,12 +264,11 @@ released = LOW.
                   (reads LOW at rest, HIGH when pressed)
 ```
 
-Do **not** use `INPUT_PULLUP` here for the same reason as §3: the internal
+Do not use `INPUT_PULLUP` here for the same reason as §4: the internal
 pull-up would fight the external pull-down.
 
-**Swing** still uses the originally-planned internal-pull-up scheme: it
-connects between the GPIO and GND, with the pin in `INPUT_PULLUP` —
-pressed/on = LOW, released/off = HIGH.
+**Swing** uses the internal-pull-up scheme instead: it connects between the GPIO
+and GND, with the pin in `INPUT_PULLUP` — pressed/on = LOW, released/off = HIGH.
 
 ```
 GPIO (INPUT_PULLUP) ──┬── toggle ── GND
@@ -216,7 +280,7 @@ interrupt for wake.
 
 ---
 
-## 5. Wake — both-edge interrupts on every line
+## 6. Wake — both-edge interrupts on every line
 
 The ATmega328P uses **PCINT** (pin-change interrupt) for deep-sleep wake from
 `SLEEP_MODE_PWR_DOWN`. PCINT fires on any logic-level change on a masked pin —
@@ -257,7 +321,7 @@ The 10 ms settle window is validated on the RS1010 — see [howtos/03_rs1010_rea
 
 ---
 
-## 6. Sleep / wake sequence
+## 7. Sleep / wake sequence
 
 ```
 sleep  (SLEEP_MODE_PWR_DOWN, all lines PCINT-armed)
@@ -275,14 +339,13 @@ sleep
 ```
 
 The device transmits whenever a knob position changes (knob position *is* the
-state — see [00_specifications.md](00_specifications.md)) and additionally on
-an explicit Resend press, which retransmits the current state unchanged
-without requiring a knob move — e.g. to recover from a signal the AC unit
-missed.
+state — see [00_specifications.md](00_specifications.md)), and on an explicit
+Resend press, which retransmits the current state unchanged — e.g. to recover
+from a signal the AC unit missed.
 
 ---
 
-## 7. Alternatives considered
+## 8. Alternatives considered
 
 **A — resistor ladder + 2-pole alternating-contact wake.** Each switch position maps to
 an ADC voltage via a resistor chain. A second pole with alternating GND/3.3 V contacts

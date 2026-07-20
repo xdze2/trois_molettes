@@ -17,8 +17,8 @@ Li-Po cell (3.7 V nominal, 3.0–4.2 V range)
 ```
 
 - **TP4056 module** handles charge from USB-C, over-discharge cutoff (DW01A), and over-current protection. No separate components needed.
-- **Pro Mini LDO** (MIC5205 or equivalent) regulates battery to 3.3 V for the MCU and switch wipers. The LDO quiescent current (~50–100 µA) is the dominant sleep term on this board — see §3.
-- The switch wiper rail is **not gated**: the settled code must stay on the lines during sleep for PCINT wake to work (see [05 §3](05_electronics_circuit.md)).
+- **Pro Mini LDO** (MIC5205 or equivalent) regulates battery to 3.3 V for the MCU and switch wipers. Its quiescent current (~50–100 µA) is the dominant sleep term on this board — see §3.
+- The switch wiper rail is not gated: the settled code must stay on the lines during sleep for PCINT wake to work (see [05 §3](05_electronics_circuit.md)).
 
 ---
 
@@ -51,11 +51,10 @@ Size the cell only after measuring actual sleep current (§3). A small flat Li-P
 | Pro Mini power LED | ~1 mA | **Remove before use** — dominant if left in |
 | Diode-encoding pull-downs (1 MΩ) | ~3–7 µA | 1–2 HIGH lines per switch at ~3.3 µA each |
 
-The **LDO quiescent current** dominates. The Pro Mini is not ideal for battery use —
-the LDO and always-on power LED together waste ~1.1 mA. After desoldering the LED,
-the LDO quiescent (~75 µA) is the real floor.
-
-At 100 µA total (LDO + pull-down leakage), a 600 mAh cell gives ~8 months.
+The LDO quiescent current dominates. The Pro Mini isn't ideal for battery use — the
+LDO and always-on power LED together waste ~1.1 mA. After desoldering the LED, the
+LDO quiescent (~75 µA) is the real floor, and at 100 µA total (LDO + pull-down
+leakage) a 600 mAh cell gives ~8 months.
 
 **To-do:** measure actual sleep current on the bench with the power LED removed and
 the MCU in `SLEEP_MODE_PWR_DOWN`. This fixes the cell size.

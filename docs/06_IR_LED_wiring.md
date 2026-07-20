@@ -116,8 +116,8 @@ C ≥ If_peak × t_pulse / ΔV_allowed
   ≈ 1800 µF for ΔV < 100 mV
 ```
 
-In practice a single large cap is not needed — the Daikin frame is a series of short bursts,
-and the battery recovers between marks. **100–470 µF** is the practical range:
+In practice a single large cap isn't needed — the Daikin frame is a series of short
+bursts, and the battery recovers between marks. **100–470 µF** is the practical range:
 
 | Value | Notes |
 |---|---|
@@ -129,88 +129,60 @@ Use an electrolytic, placed physically close to the collector/VCC node. Polarity
 
 ## Wall-Mount Coverage — Wide Angle vs. Range
 
-The TSAL6200's ±17° half-angle is chosen for **range**, which is the opposite of
-what a wall-mounted remote wants: it could sit on any wall and must reach an AC
-unit somewhere in the room. The instinct is "use a wide-angle LED" — but that
-trades away the wrong thing.
+The TSAL6200's ±17° half-angle is chosen for range, which cuts against a
+wall-mounted remote that could sit on any wall and must reach an AC unit
+somewhere in the room. The instinct is "use a wide-angle LED," but that trades
+away the wrong thing: the same radiant flux spread over a wider solid angle means
+lower intensity in every direction (conservation of étendue). Wide-angle IR parts
+(OP165W ±90° ~0.5 mW, OP293 ±30° low output) are low-power signalling emitters,
+~10–100× weaker than the TSAL6200 — swapping to one guts the range. Don't
+downgrade the emitter to buy angle.
 
-### Why you can't just swap to a wide LED
-
-The same radiant flux spread over a wider solid angle means **lower intensity in
-every direction** (conservation of étendue). Wide-angle IR parts are low-power
-*signalling* emitters, not range parts:
-
-| Part | Half-angle | Radiant output | Verdict |
-|---|---|---|---|
-| **TSAL6200** (current) | ±17° | ~80 mW/sr @ 100 mA | Focused, strong |
-| OP165W | ±90° | ~0.5 mW @ ~20 mA | Wide but ~10–100× weaker — gut range |
-| OP293 | ±30° | low | Low-power signalling part |
-
-Swapping to OP165W/OP293 gives the angle and then the AC can't see it from across
-the room. **Don't downgrade the emitter to buy angle.**
-
-### Two things work in your favour
-
-1. **IR bounces.** Walls, ceiling, and furniture reflect 940 nm well. Remotes
-   routinely work off reflections, so you rarely need direct line-of-sight across
-   a full hemisphere — enough flux *in the room* usually finds a path to the
-   sensor.
-2. **The AC unit is in a fixed, known direction** (high on one wall). The remote
-   needs to cover the arc toward the AC plus some spill for bounce — not a true
-   180°.
+Two things work in our favour instead: IR bounces well off walls/ceiling/furniture,
+so direct line-of-sight across a full hemisphere usually isn't needed; and the AC
+unit sits in a fixed, known direction, so the remote only needs to cover that arc
+plus spill for bounce — not a true 180°.
 
 ### Strategy A — Multi-LED fan (keep the strong emitter)
 
-Lean into the multi-LED section above. Use **3–5× TSAL6200 fanned across the
-horizontal** (e.g. 0°, ±40°, ±80°) for a near-continuous high-intensity fan
-approaching ~160–180° **with full range the whole way**. Re-budget current: 5
-LEDs at ~60 mA each = 300 mA total still fits the S9013 (500 mA), or step up the
-transistor. **Build the documented 3× version and test in the real room first** —
-direct + bounce often covers more than the angle math suggests.
+3–5× TSAL6200 fanned across the horizontal (e.g. 0°, ±40°, ±80°) gives a
+near-continuous high-intensity fan approaching ~160–180° with full range the whole
+way. 5 LEDs at ~60 mA each = 300 mA still fits the S9013 (500 mA). Build the
+documented 3× version and test in the real room first — direct + bounce often
+covers more than the angle math suggests.
 
 ### Strategy B — Optics (aesthetic + horizontal beam-shaping)
 
-A lens can't create coverage — it only redistributes flux the LED already emits
-(étendue again). A symmetric diffuser just turns a strong narrow LED into a weak
-wide one. But shaping is useful:
-
-- **Cylindrical / lenticular lens** spreads the beam **horizontally while keeping
-  it tight vertically** — ideal for a wall mount, since floor/ceiling flux is
-  wasted anyway. Can turn ±17° symmetric into ~±50° H / ±17° V.
-- **Engineered diffuser film** (light-shaping diffuser, e.g. 60°×1° spreads) does
-  this in a thin, cheap layer that looks intentional behind a window.
-- **Tinted IR-pass window** (the dark-red plastic over every TV remote) hides the
-  LEDs and looks like a finished product, at near-zero optical cost. Worth doing
-  regardless.
-
-Optics are for *aesthetics and horizontal shaping* — not a substitute for
-multiple emitters.
+A lens can't create coverage, only redistribute flux the LED already emits — a
+symmetric diffuser turns a strong narrow LED into a weak wide one. But shaping is
+useful: a cylindrical/lenticular lens spreads the beam horizontally while keeping
+it tight vertically (floor/ceiling flux is wasted on a wall mount anyway; can turn
+±17° symmetric into ~±50° H / ±17° V), and a tinted IR-pass window (the dark-red
+plastic over every TV remote) hides the LEDs at near-zero optical cost — worth
+doing regardless. Optics are for aesthetics and horizontal shaping, not a
+substitute for multiple emitters.
 
 ### Strategy C — Aimable head (directional mount)
 
-Sidesteps the étendue problem entirely: keep the TSAL6200's full focused beam and
-**aim it once at install time**. The AC never moves, so it only needs to aim and
-*stay* — a mechanical positioning problem, not a motor problem.
+Sidesteps the étendue problem: keep the TSAL6200's full focused beam and aim it
+once at install time. The AC never moves, so this is a mechanical positioning
+problem, not a motor problem — skip motorised aiming, since a servo adds power
+draw (bad for a µA-sleep battery remote) and noise for no benefit once set.
 
 | Mechanism | Axes | Wiring across joint | Notes |
 |---|---|---|---|
-| **Ball-and-socket / friction gimbal** | pan + tilt | flexible leads / flat-flex through socket | **Recommended.** GoPro/camera-ball style, friction holds aim, no power to hold |
-| Detented turntable ("rotating antenna") | pan only | flex with ±180° stop, or keep PCB on platter | Click detents like a thermostat dial; slip-ring is overkill |
-| Flip-up hinge panel | tilt only | hinge-routed leads | Friction hinges, very product-looking, good if AC is roughly in front |
+| **Ball-and-socket / friction gimbal** | pan + tilt | flexible leads / flat-flex through socket | Recommended. GoPro/camera-ball style, friction holds aim, no power to hold |
+| Detented turntable | pan only | flex with ±180° stop, or keep PCB on platter | Click detents like a thermostat dial; slip-ring is overkill |
+| Flip-up hinge panel | tilt only | hinge-routed leads | Friction hinges, good if AC is roughly in front |
 
-- **Skip motorised aiming.** The AC is stationary, so a servo buys nothing after
-  setup, adds power draw (bad for a µA-sleep battery remote), noise, and can't
-  hold angle unpowered. Auto-find by sweep is pointless too — the AC sends no IR
-  ACK to close the loop on.
-- **Reflector-cup boost:** a small parabolic/conical reflector behind the LED (or
-  a short lens hood) tightens and strengthens the on-axis beam, so an aimed head
-  has excellent range and a clear "this points at your unit" affordance. Keep
-  3× TSAL6200 in the head for install tolerance.
+A small reflector cup or lens hood behind the LED tightens the on-axis beam for
+extra range and a clear "this points at your unit" affordance. Keep 3× TSAL6200
+in the head for install tolerance.
 
 **Recommendation order:** build the 3× fan and test in-room → if dead spots, go
 5× fan → add lenticular/diffuser + tinted window for blend & aesthetics → use an
-aimable friction-gimbal head if you want focused range with a deliberate
-point-at-the-AC interaction.
+aimable friction-gimbal head if focused range with a deliberate point-at-the-AC
+interaction is wanted.
 
 ## Component Summary
 

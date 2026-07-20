@@ -2,7 +2,11 @@
 
 ## 1. Constraints
 
-The device sleeps **~100 % of the time** (a few sub-second wakes per day), so **sleep current ≈ average current ≈ the entire battery budget**. That, plus the two requirements your interface design forces — *wake on ~13 independent GPIO lines* and *hand-build on perfboard from a dev board* — are what actually drive the choice. The IR library, which used to head this list, is now a convenience, not a gate.
+The device sleeps ~100% of the time (a few sub-second wakes per day), so sleep current
+≈ average current ≈ the entire battery budget. That, plus two requirements the
+interface design forces — wake on ~13 independent GPIO lines, and hand-build on
+perfboard from a dev board — are what drive the choice. The IR library is a
+convenience, not a gate.
 
 | Constraint | Weight | Detail |
 |---|---|---|
@@ -75,26 +79,35 @@ Recommended additions regardless of MCU choice:
 
 ## 5. Decision
 
-The reframed constraints (sleep current hard, 13-pin wake hard, dev-board/perfboard-only hard, IR library soft) **invert the previous decision**. RP2040 is out: it can't hit the battery target in a perfboard-able form, and the bare-chip escape hatch is now excluded. The choice is between the three boards that clear both hard power/wake gates.
+**Locked: ATmega328P (Pro Mini 3.3 V), power-down + PCINT.** It clears both hard gates
+(sleep current, 13-pin both-edge wake) under the perfboard-only constraint, is on hand,
+and is the easiest of the three candidates to hand-build:
 
-### Preferred: nRF52840 — Seeed Studio XIAO nRF52840
+- `SLEEP_MODE_PWR_DOWN` <1 µA at the die (BOD disabled); PCINT gives hardware both-edge
+  wake on all ~20 pins.
+- DIP/through-hole, cheapest (~€3–4).
+- Costs paid: needs an external USB-serial adapter to flash; 8-bit with 32 KB flash
+  (ample for the ported Daikin frame); BOD must be disabled or sleep current jumps to
+  ~20 µA. On the assembled **board**, LDO quiescent (~75 µA) dominates over the die
+  figure — see [07_battery_and_power.md](07_battery_and_power.md).
+- Ported and tested: firmware builds the Daikin frame directly (§3), ARC466A33 validated
+  against the real unit.
 
-- **~1.5–2.4 µA board sleep** (System ON, RAM retained) — ~500–1000× below the Pico board, turning "9 weeks, missed" into *years* on a modest cell.
-- **All ~48 GPIO wake from sleep**, per-pin polarity, with a LATCH register that tells the ISR which line changed — a clean fit for 13 diode-encoded + button lines at mixed idle levels.
-- **Native IR fit** — PWM generates the 38 kHz carrier from RAM (Nordic Smart Remote 3 is exactly this device class).
-- Tiny (21×18 mm), USB programming (Arduino / Zephyr), onboard battery management, ~€10.
-- **Cost paid:** port the Daikin frame (accepted) and verify the board's battery power path doesn't leak (some XIAO wiring shows ~20 µA via VBAT — fixable; bench-confirm).
+### Upgrade path if the LDO floor proves too high
 
-### Strong alternative: STM32L4 (WeAct / Nucleo board), STOP2 mode
+Both alternatives clear the same hard gates at lower board-sleep current and would be
+the fallback if bench measurement shows the Pro Mini can't hit the 6-month target even
+after removing the power LED and swapping the LDO:
 
-- **~2–4 µA** in STOP2, the **only candidate with genuine hardware any-pin both-edge EXTI** — no re-arm dance, 13 lines trivial.
-- Cheap WeAct boards (~€5–8), onboard ST-LINK or USB-DFU, mature HAL/Arduino-STM32 toolchain.
-- Note: STM32 STANDBY/SHUTDOWN (deeper, ~nA) only wakes on ~5 WKUP pins → too few; **use STOP2**, which keeps the full EXTI matrix at low-µA.
-
-### Simplest build: ATmega328P (Pro Mini 3.3 V), power-down + PCINT
-
-- **<1 µA** power-down (BOD disabled), **PCINT = hardware both-edge on all ~20 pins**, DIP/through-hole — the easiest to hand-build and cheapest (~€3–4).
-- Costs: needs an external USB-serial adapter to flash; 8-bit with 32 KB flash (ample for a ported Daikin frame but tight if much else grows); must remember to disable BOD or sleep jumps to ~20 µA.
+- **nRF52840 (Seeed XIAO)** — ~1.5–2.4 µA board sleep (System ON, RAM retained), all
+  ~48 GPIO wake with per-pin polarity and a LATCH register identifying which line
+  changed. Native IR fit (PWM carrier from RAM, à la Nordic's Smart Remote 3 reference
+  design). ~€10. Cost: port the Daikin frame (same work either way) and confirm the
+  board's VBAT path doesn't leak (~20 µA on some XIAO wiring).
+- **STM32L4 (WeAct/Nucleo), STOP2 mode** — ~2–4 µA, the only candidate with genuine
+  hardware any-pin both-edge EXTI (no re-arm dance). Cheap boards (~€5–8), onboard
+  ST-LINK/USB-DFU. Use STOP2, not STANDBY/SHUTDOWN — the deeper modes only wake on ~5
+  WKUP pins.
 
 ### Ruled out
 
@@ -102,24 +115,22 @@ The reframed constraints (sleep current hard, 13-pin wake hard, dev-board/perfbo
 |---|---|
 | RP2040 / RP2350 — Pico, Pico 2 | ~1–1.8 mA board sleep (RT6150 SMPS); bare-chip fix needs a PCB → excluded by perfboard-only. |
 | ESP32-WROOM — DevKit | mA-class on a DevKit; bare module (~10 µA) needs custom board, and EXT1 wake is awkward for 13 mixed lines. |
-| ESP32-C3 / C6 — XIAO | Great ~6 µA sleep but only 6 / 8 deep-sleep wake pins — **below 13**. |
+| ESP32-C3 / C6 — XIAO | Great ~6 µA sleep but only 6 / 8 deep-sleep wake pins — below 13. |
 | ATmega4809 — Nano Every | ~31 µA power-down, no benefit over the 328P. |
 | ATtiny85 — Digispark | 8 KB flash, too few I/O for 13 wake lines + ported frame. |
 
 ---
 
-## 6. First Prototype Steps
+## 6. Prototype validation
 
-Two things must be proven on the bench before committing the board — and the **order has flipped**: power/wake first, IR second.
+Two things needed proving on the bench, power/wake first, IR second:
 
-**A. Sleep + multi-GPIO wake (the gating risk).** On the chosen board:
-1. Put the MCU in its deepest viable sleep (nRF52 System ON / STM32 STOP2 / AVR power-down).
-2. Arm ~13 GPIO for both-edge wake (emulated via re-arm where needed); measure board sleep current with a µA meter.
-3. Confirm every line wakes the MCU on either edge, including non-zero→non-zero code changes (the diode-encoding case — see [05 §3.5](05_electronics_circuit.md#35-the-chosen-scheme--per-switch-diode-encoding)).
-4. Confirm the measured current supports ≥6 months on a realistic cell. This sizes the battery ([05 §6](05_electronics_circuit.md#6-battery-budget)).
+**A. Sleep + multi-GPIO wake** — done. `SLEEP_MODE_PWR_DOWN` with all ~13 lines
+PCINT-armed, confirmed waking on either edge including non-zero→non-zero code changes
+(see [howtos/03_rs1010_readout.md](../howtos/03_rs1010_readout.md)). Remaining: measure
+actual board sleep current with the power LED removed, to size the cell
+([07_battery_and_power.md](07_battery_and_power.md)).
 
-**B. IR transmit.** Build and send one Daikin frame (ported, or via a library if the chip has one):
-1. Assemble the 35-byte frame for `power on / cool / 22 °C`, compute the checksum, clock it out at 38 kHz through the LED driver.
-2. Verify the FTXM20N2V1B responds.
-
-If a board fails **A**, move to the next in the preference order (nRF52840 → STM32L4 → ATmega328P) and repeat — **A** is the decisive test, **B** is portable across all three.
+**B. IR transmit** — done. Full Daikin frame built, checksummed, and clocked out at
+38 kHz; the FTXM20N2V1B responds (see
+[howtos/08_daikin_fan_toggle.md](../howtos/08_daikin_fan_toggle.md)).

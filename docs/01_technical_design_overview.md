@@ -6,8 +6,7 @@ A high-level map of the design: the choices made, the ones still open, and the t
 - [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md) — Daikin IR protocol and control mapping
 - [02_BOM_prototype.csv](02_BOM_prototype.csv) — parts and sourcing
 - [03_microcontroller_choice.md](03_microcontroller_choice.md) — MCU comparison
-- [04_rotary_switch_choice.md](04_rotary_switch_choice.md) — rotary switch part selection
-- [05_electronics_circuit.md](05_electronics_circuit.md) — the circuit: readout, wake, IR driver, power
+- [05_electronics_circuit.md](05_electronics_circuit.md) — rotary switch selection and the circuit: readout, wake, IR driver, power
 
 The whole design is pulled in two directions at once: the **stateless interface** (knob position = state, big tangible controls) and the **6-month battery target**. Most open questions are where those two collide.
 
@@ -30,11 +29,11 @@ Three rotary selectors (Fan/Power, Mode, Temperature) + a Send button (+ optiona
 
 ## 2. MCU — chosen on sleep current and wake, not on the IR library
 
-The device sleeps ~100 % of the time, so **sleep current ≈ average current ≈ the whole battery budget** — and the diode-encoded readout needs **~12 GPIO that can wake the MCU on both edges**. Those two, plus a **perfboard-only / dev-board-only** build rule (no PCB fabrication), drove the choice.
+The device sleeps ~100% of the time, so sleep current ≈ average current ≈ the whole battery budget, and the diode-encoded readout needs ~12 GPIO that can wake the MCU on both edges. Those two constraints, plus a perfboard-only build rule (no PCB fabrication), drove the choice.
 
-**Locked: ATmega328P (Pro Mini 3.3 V).** On hand, simplest to hand-build, and it clears both gates: `SLEEP_MODE_PWR_DOWN` with PCINT both-edge wake on every code/button line (genuinely per-pin, including non-zero→non-zero code changes), and a documented AVR IR path via Timer2. The board sleep floor is dominated by the Pro Mini's onboard LDO quiescent (~75 µA) rather than the chip itself (~0.1 µA power-down) — a known cost, mitigated by removing the power LED and optionally swapping the LDO (see [07_battery_and_power.md §4](07_battery_and_power.md)).
+**Locked: ATmega328P (Pro Mini 3.3 V).** On hand, simplest to hand-build, and it clears both gates: `SLEEP_MODE_PWR_DOWN` with PCINT both-edge wake on every code/button line (genuinely per-pin, including non-zero→non-zero code changes), and a documented AVR IR path via Timer2. The board sleep floor is dominated by the Pro Mini's onboard LDO quiescent (~75 µA) rather than the chip itself (~0.1 µA power-down) — mitigated by removing the power LED and optionally swapping the LDO (see [07_battery_and_power.md §4](07_battery_and_power.md)).
 
-The lower-µA candidates — **nRF52840 (Seeed XIAO)** (~1.5–2.4 µA board sleep, all-GPIO wake) and **STM32L4 STOP2** (~2–4 µA) — were evaluated and remain the upgrade path if the LDO floor proves too high for the battery target. The earlier RP2040 pick was dropped (Pico board ~1–1.8 mA from its always-on SMPS); cheap ESP32-C parts expose too few deep-sleep wake pins. Full comparison in [03_microcontroller_choice.md](03_microcontroller_choice.md); budget in [07_battery_and_power.md](07_battery_and_power.md).
+The lower-µA candidates — nRF52840 (Seeed XIAO, ~1.5–2.4 µA board sleep) and STM32L4 STOP2 (~2–4 µA) — remain the upgrade path if the LDO floor proves too high for the battery target. Full comparison in [03_microcontroller_choice.md](03_microcontroller_choice.md); budget in [07_battery_and_power.md](07_battery_and_power.md).
 
 ---
 
@@ -59,9 +58,9 @@ Plus Send (+ optional Swing) button GPIO ≈ **10–11 input pins**, all interru
 
 ### Why this, over the alternatives considered
 
-- **Readout and wake come from the same lines.** Any knob move flips ≥1 code bit → a both-edge interrupt on that line wakes the MCU. (A single OR'd wake pin would miss non-zero→non-zero moves — must be *per-line* edges.) So no separate wake pole is needed, which is what **removes the 2-pole requirement** and lets every switch be chosen on **feel and size alone**.
-- **Rejected:** resistor-ladder + 2P (needs scarce 2P ≥10-pos parts, a gated analog rail, ADC calibration); ladder + comparator (keeps the ladder *and* adds an IC); off-the-shelf coded switch (right circuit, wrong feel). All recorded in [05_electronics_circuit.md §3](05_electronics_circuit.md#3-readout--wake--design-options).
-- **Cost:** ~19 small-signal diodes for the temperature switch (fewer for Fan/Mode), loose 1N4148/BAV99 — no dedicated "diode array" part exists for this. Lays out cleanly on perfboard (one rail per code line).
+- **Readout and wake come from the same lines.** Any knob move flips ≥1 code bit → a both-edge interrupt on that line wakes the MCU (a single OR'd wake pin would miss non-zero→non-zero moves — must be per-line edges). No separate wake pole is needed, which removes the 2-pole requirement and lets every switch be chosen on feel and size alone.
+- **Rejected:** resistor-ladder + 2P (needs scarce 2P ≥10-pos parts, a gated analog rail, ADC calibration); ladder + comparator (keeps the ladder *and* adds an IC); off-the-shelf coded switch (right circuit, wrong feel). Detail in [05_electronics_circuit.md §3](05_electronics_circuit.md#3-readout--wake--design-options).
+- **Cost:** ~29 small-signal diodes total (1N4148/BAV99), one rail per code line — lays out cleanly on perfboard.
 
 ### Still to validate on the bench
 
@@ -77,13 +76,13 @@ PCINT both-edge wake from `SLEEP_MODE_PWR_DOWN` is **validated on the RS1010** (
 
 ## 5. Feedback — single TX LED
 
-One indicator LED, flashes on IR send, confirms the device is alive. The 25-LED WS2812B chain was dropped: ~15 mA quiescent kills the battery target, and it's redundant with "knob position = state." Firm decision. Drive detail in [05_electronics_circuit.md](05_electronics_circuit.md).
+One indicator LED, flashes on IR send, confirms the device is alive. The 25-LED WS2812B chain was dropped: ~15 mA quiescent kills the battery target, and it's redundant with "knob position = state." Drive detail in [05_electronics_circuit.md](05_electronics_circuit.md).
 
 ---
 
 ## 6. Power
 
-Li-Po single cell, TP4056 USB-C charge/protect module, 220 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. On the Pro Mini the **LDO quiescent (~75 µA) is the dominant sleep term**, not the switch leakage; the 6-month target is reachable on a small cell after removing the power LED, with room to push toward "years" by swapping the LDO. Cell size is left **TBD until sleep current is measured on the assembled board**. Detail and budget in [07_battery_and_power.md](07_battery_and_power.md).
+Li-Po single cell, TP4056 USB-C charge/protect module, 220 µF bulk cap for the IR pulse. No analog rail to gate — the digital encoding's only standing current is a few µA of switch leakage, kept small with weak pull-downs. The Pro Mini's LDO quiescent (~75 µA) is the dominant sleep term, not the switch leakage; the 6-month target is reachable on a small cell after removing the power LED, with room to push toward "years" by swapping the LDO. Cell size is TBD until sleep current is measured on the assembled board. Detail and budget in [07_battery_and_power.md](07_battery_and_power.md).
 
 ---
 
