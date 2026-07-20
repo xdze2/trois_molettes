@@ -16,44 +16,43 @@ Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `D
 
 ## Hardware summary
 
-- 3 rotary switchs (all 1-pole) **ALPHA SR16** + Send button (+ optional Swing toggle)
-
-- Arduino Pro Mini 3.3 V (ATmega328P)
-  — on hand, sufficient for this design, ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 were evaluated for lower µA-class sleep; see [03_microcontroller_choice.md](docs/03_microcontroller_choice.md))
+- **Controls:** 3 rotary switches (all 1-pole), **ALPHA SR16** + Send button (+ optional Swing toggle)
+- **MCU:** Arduino Pro Mini 3.3 V (ATmega328P) — on hand, sufficient, ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 were evaluated for lower µA-class sleep; see [03_microcontroller_choice.md](docs/03_microcontroller_choice.md))
 - **IR:** TSAL6200 940 nm LED (×1 or ×3 fan) + S9013 NPN transistor driver · 38 kHz carrier via the 328P Timer2 (OC2B, pin D3) · Daikin ARC466A33 frame ported from the documented format and validated against the real unit
-
-- **Power:** Li-Po 3.7 V · TP4056 USB-C charging module · MCU in `SLEEP_MODE_PWR_DOWN` between transmissions, woken by PCINT edge (6-month → multi-year battery target — bench-validation pending)
+- **Power:** Li-Po 3.7 V · TP4056 USB-C charging module · MCU sleeps between transmissions, woken by PCINT edge (6-month → multi-year battery target — bench-validation pending)
 
 ## Status & roadmap
 
-see howtos...
+All three subsystems — selector readout + sleep/wake, real Daikin IR comms, AVR
+firmware port — are individually proven on the bench (see the [bench logs](#bench-logs-build-journal)).
 
-2. **✅ Prototype integration on a wood panel** — first prototype almost done: real
-   encoders wired to the devboard, running end-to-end. Still missing: panel labels, the
-   rs1010 side-switch panel layout, attaching the battery, and temperature-range tuning.
+**✅ Prototype integration on a wood panel** — real encoders wired to the devboard,
+running end-to-end. Still missing: panel labels, the rs1010 side-switch panel layout,
+attaching the battery, and temperature-range tuning.
 
-   <img src="images/photos/PXL_20260720_092943110_web.jpg" alt="Prototype integration on a wood panel" width="50%">
+<img src="images/photos/PXL_20260720_092943110_web.jpg" alt="Prototype integration on a wood panel" width="50%">
 
-   <img src="images/photos/PXL_20260720_093003884_web.jpg" alt="Prototype integration on a wood panel" width="50%">
+<img src="images/photos/PXL_20260720_093003884_web.jpg" alt="Prototype integration on a wood panel" width="50%">
 
-   Lessons learned:
-   - **The rotary switch mounting and wiring approach needs rework — current method doesn't
-     scale well to three knobs in an enclosure.**
-   - A nice box without a PCB is hard — perfboard wiring mess and component size (the
-     readout diodes especially) eat panel space fast.
-   - A Li-Po battery is likely overkill; actual sleep/active current draw still needs
-     measuring before picking a battery chemistry.
-   - 3× IR LEDs work electrically but are not enclosure/design-friendly; worth revisiting
-     against a single wider-angle LED.
-   - Open question: is a dedicated swing switch worth the panel space, or should swing
-     live on an existing control?
+Lessons learned:
 
-### **Next:** ... PCB design ...
+- **The rotary switch mounting and wiring needs rework** — current method doesn't scale
+  well to three knobs in an enclosure.
+- A nice box without a PCB is hard — perfboard wiring mess and component size (the
+  readout diodes especially) eat panel space fast.
+- A Li-Po battery is likely overkill; actual sleep/active current draw still needs
+  measuring before picking a battery chemistry.
+- 3× IR LEDs work electrically but aren't enclosure/design-friendly; worth revisiting
+  against a single wider-angle LED.
+- Open question: is a dedicated swing switch worth the panel space, or should swing
+  live on an existing control?
 
-- Rotary switches choices: pcb mount front
-- IR led choice
-- batterty choice: AA with regulator ?
-- Learn KiCad...
+### Next: PCB design
+
+- Rotary switch choice — PCB-mount, front-facing
+- IR LED choice
+- Battery choice — AA with regulator?
+- Learn KiCad
 
 ## Files
 
