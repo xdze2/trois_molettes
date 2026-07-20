@@ -137,8 +137,13 @@ A diode is placed for each set bit in each position code:
 | Switch | Positions used | Total diodes |
 |---|---|---|
 | Fan speed (SR16) | 8 | 12 |
-| Mode (RS1010) | 5 | 4 |
+| Mode (RS1010) | 5 | 5 |
 | Temperature (SR16) | 8 | 12 |
+| **Total** | | **29** |
+
+(One diode per set bit, summed over each switch's position codes: Mode positions
+0–4 have codes 000, 001, 010, 011, 100 → 0+1+1+2+1 = **5** diodes. The netlist
+generator `schematics/circuit.py` derives these counts from the same tables.)
 
 Use **1N4148** (THT) or **BAV99 / BAV70** (SOT-23, 2 per package).
 Lay out as one rail per code line, diodes from contacts to rails — clean on perfboard.

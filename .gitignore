@@ -7,3 +7,12 @@ datasheets/
 # Python
 __pycache__/
 *.pyc
+
+# SKiDL netlist workflow (schematics/circuit.py)
+# Fetched KiCad symbol libs (CC-BY-SA — don't redistribute as a collection)
+schematics/.kicad-symbols-cache/
+# Generated netlist + SKiDL side files — re-render from circuit.py
+schematics/circuit.net
+schematics/circuit.erc
+schematics/circuit.log
+schematics/circuit_sklib.py
