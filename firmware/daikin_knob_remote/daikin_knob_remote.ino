@@ -102,10 +102,22 @@ const ModePos MODE_POS[5] = {
     { "Fan",  DAIKIN_MODE_FAN  },
 };
 
-// --- Temp knob (SR16, 8 positions), left -> right -------------------------
-// Position -> degrees C is a formula, not a table: mode-dependent base + 2*pos
-// (Heat 14-28C, else 20-34C; 00_specifications.md 4.3). See applyTempPos().
+// --- Temp knob (SR16, 8 positions), indexed by raw gpio code --------------
+// One table per mode: TEMP_C[isHeat][raw] is the target °C for that raw code.
+// Like FAN_POS / MODE_POS, rows are ordered by *raw code*, so the knob's
+// wiring reversal (raw 0 is the RIGHTMOST detent = warmest) is absorbed into
+// row order — raw 0 -> top of range, raw 7 -> bottom. 1C steps throughout,
+// Heat 14-21C / else 24-31C (00_specifications.md 4.3). See applyTempPos().
+//
+// IMPORTANT: rows are indexed by raw code — TEMP_C[m][raw] must be raw's temp,
+// so if a bench sweep shows a different reversal/shift, edit the row order here.
 const uint8_t N_TEMP_POS = 8;
+const uint8_t TEMP_C[2][N_TEMP_POS] = {
+    // [0] Cooling (Cool/Fan/Dry/Auto): raw 0 = 31C (rightmost) .. raw 7 = 24C
+    { 31, 30, 29, 28, 27, 26, 25, 24 },
+    // [1] Heating (Heat):              raw 0 = 21C (rightmost) .. raw 7 = 14C
+    { 21, 20, 19, 18, 17, 16, 15, 14 },
+};
 
 const uint8_t N_FAN_POS  = sizeof(FAN_POS)  / sizeof(FAN_POS[0]);
 const uint8_t N_MODE_POS = sizeof(MODE_POS) / sizeof(MODE_POS[0]);
@@ -127,14 +139,14 @@ enum { SW_FAN = 0, SW_MODE = 1, SW_TEMP = 2 };
 Switch switches[] = {
     { "Fan",  {10, 11, 12}, 0xFF },
     { "Mode", {A2, A1, A0}, 0xFF },  // pin order per howto 09 fix
-    { "Temp", {6,  5,  4},  0xFF },  // b0/b2 pins swapped vs. design doc; see howto 09
+    { "Temp", {6,  5,  4},  0xFF },  
 };
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;
 
-const uint8_t SETTLE_MS = 10;
-const uint8_t SETTLE_STABLE_READS = 5;  // consecutive agreeing reads required
-const uint8_t MAX_SETTLE_TRIES = 20;
+const uint8_t SETTLE_MS = 20;
+const uint8_t SETTLE_STABLE_READS = 5;  // consecutive agreeing reads required (-> ~100 ms stable)
+const uint8_t MAX_SETTLE_TRIES = 30;    // timeout budget SETTLE_MS * this = ~600 ms
 
 // Resend button debounce (simple hold-off, not a settle loop like the knobs —
 // see 05_electronics_circuit.md §4).
@@ -276,17 +288,13 @@ void applyModePos(uint8_t pos, ACState *st) {
     st->mode = MODE_POS[pos].mode;
 }
 
-// Temp knob raw code (0..7, 05_electronics_circuit.md §2) -> degrees C.
-// Mode-dependent offset: Heat uses 14-28C, everything else uses 20-34C,
-// both in 2C steps (00_specifications.md 4.3).
-//
-// Unlike Fan/Mode, Temp is a formula not a table, so a shifted or reversed
-// Temp knob can't be absorbed into row order — it must be corrected here.
-// Temp is not yet bench-verified (see howto 09 "Next"); if the sweep shows it
-// reversed, map raw->pos first, e.g.  pos = (N_TEMP_POS - 1) - raw;
-uint8_t applyTempPos(uint8_t pos, uint8_t mode) {
-    uint8_t base = (mode == DAIKIN_MODE_HEAT) ? 14 : 20;
-    return base + pos * 2;
+// Temp knob raw gpio code (0..7, 05_electronics_circuit.md §2) -> degrees C.
+// Thin lookup into TEMP_C, indexed directly by raw code like FAN_POS/MODE_POS;
+// the mode selects the Heat vs. Cooling row and the wiring reversal lives in
+// that row order (raw 0 = rightmost = warmest). See the TEMP_C table above.
+uint8_t applyTempPos(uint8_t raw, uint8_t mode) {
+    if (raw >= N_TEMP_POS) raw = N_TEMP_POS - 1;  // out-of-range -> coldest, fail safe
+    return TEMP_C[mode == DAIKIN_MODE_HEAT ? 1 : 0][raw];
 }
 
 // ---------------------------------------------------------------------------

@@ -61,7 +61,7 @@ Method: `setMode(uint8_t)` / `getMode()`
 | Minimum | 10 °C (`kDaikinMinTemp`) |
 | Maximum | 32 °C (`kDaikinMaxTemp`) |
 | Step | 1 °C |
-| Range used by this project | 14–34 °C, 2 °C steps (see [00_specifications.md §4.3](00_specifications.md#43-temperature--8-position-rotary-sr16-mode-dependent-mapping)) |
+| Range used by this project | 14–31 °C, 1 °C steps (14–21 °C heating, 24–31 °C cooling; see [00_specifications.md §4.3](00_specifications.md#43-temperature--8-position-rotary-sr16-mode-dependent-mapping)) |
 
 Method: `setTemp(uint8_t)` / `getTemp()`
 

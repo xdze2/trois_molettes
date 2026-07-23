@@ -22,7 +22,7 @@
 struct ACState {
     bool    power;
     uint8_t mode;     // DAIKIN_MODE_*
-    uint8_t temp;     // 16–26 °C
+    uint8_t temp;     // °C, clamped to 10–32 in daikin_build_frame()
     uint8_t fan;      // DAIKIN_FAN_*
     bool    swing_v;
     bool    powerful;

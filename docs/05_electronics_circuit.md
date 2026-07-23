@@ -14,10 +14,32 @@ Three rotary selectors needed:
 |---|---|---|
 | Fan speed | 8 (Off / 1–5 / Quiet / Auto) | Alpha SR16, 1P8T |
 | Mode | 5 (Fan / Cool / Heat / Dry / Auto) | RS1010, 1P |
-| Temperature | 8 (2 °C steps, mode-dependent range) | Alpha SR16, 1P8T |
+| Temperature | 8 (1 °C steps, mode-dependent range) | Alpha SR16, 1P8T |
 
 All are plain 1-pole (1P) — read by per-switch diode encoding, see §3 below.
 Switches are chosen on body size and detent feel; pole count is not a constraint.
+
+### Shorting vs. non-shorting contacts
+
+Rotary switches come in two contact styles, and it matters here:
+
+- **Non-shorting (break-before-make):** the wiper fully leaves the old contact
+  before touching the next. Between detents *all* code lines float to the
+  pull-down level (all-zero), so a mid-turn read can momentarily see `000` and,
+  with natural-binary encoding, any bit that switches late gives a bogus code.
+- **Shorting (make-before-break):** the wiper bridges the old and new contacts
+  through the transition, so the code lines OR the two positions together rather
+  than dropping to zero. No all-open float, but the intermediate read is the
+  *bitwise-OR* of the two codes — still not a valid position under natural binary.
+
+Either way, natural-binary encoding produces transient false codes mid-turn, which
+is why the firmware debounces (§6). The Alpha SR16 and RS1010 are treated as
+**non-shorting** here (the common variant); the §6 wake note relies on the
+all-lines-float edge, which only a non-shorting switch guarantees. If a shorting
+variant is substituted, wake still works (OR'd codes still change ≥1 line on a
+move) but the extra float edges disappear — confirm the part's contact style
+before ordering. This transient-code problem is the one that **Gray-code
+encoding removes** regardless of contact style — see §3.
 
 ### Fan speed — Alpha SR16 1P8T
 
@@ -39,15 +61,16 @@ The RS1010 goes up to 6 positions in 1P — 5 fits cleanly.
 
 ### Temperature — Alpha SR16 1P8T
 
-Same part as Fan speed. 8 positions, 2 °C steps. Firmware applies a
+Same part as Fan speed. 8 positions, 1 °C steps. Firmware applies a
 mode-dependent offset to map the 8 positions to the correct temperature range
 (see [00_specifications.md §4.3](00_specifications.md)).
 
 ### Alternative considered — two RS1010 for temperature
 
 Two RS1010 switches (5×5 = 25 positions) would give 1 °C resolution across a
-wider range. Rejected: doubles the switch count, complicates panel layout, and
-2 °C steps cover the practical daily-use range adequately for this application.
+*wider* range (the single SR16 covers 8 °C per mode at 1 °C steps). Rejected:
+doubles the switch count, complicates panel layout, and an 8-position 1 °C-step
+range covers the practical daily-use band adequately for this application.
 
 ### Other switches evaluated
 
@@ -154,6 +177,29 @@ All three switches use **3 code lines** (natural binary, positions 0–N).
 `position = read_gpio_group()` directly — no lookup, no offset in hardware.
 The temperature range offset (heating vs cooling) is applied in firmware based on the Mode knob.
 
+#### Natural binary vs. Gray code
+
+The tables below use **natural binary**, so adjacent positions can differ in more
+than one bit — e.g. Fan 3→4 goes `011`→`100`, flipping all three lines at once.
+If those lines don't switch in the same instant (contact skew, or the momentary
+all-open float of a non-shorting switch — see §1), the decoder can briefly read a
+bogus in-between code (7, 5, 1…). That transient is exactly what the §6 debounce
+settle-loop exists to filter out.
+
+**Gray code** (a.k.a. reflected binary code) is the encoding where **consecutive
+positions differ by exactly one bit**. With a Gray-coded switch, any single-step
+move flips only one line, so a mid-transition read is always either the old
+position or the new one — never a spurious third value. That would remove the need
+for the multi-read settle window entirely (a one-shot read plus a short bounce
+hold-off would suffice), at the cost of a firmware Gray→binary decode step and a
+different diode pattern per position.
+
+This design keeps **natural binary** for readability (the diode pattern *is* the
+position number) and relies on the firmware debounce instead. If contact skew or
+non-shorting float ever proves troublesome on the bench, re-wiring the diodes to a
+Gray sequence is the hardware fix — decode in firmware with
+`binary = gray ^ (gray >> 1) ^ (gray >> 2)` for a 3-bit code.
+
 ### Fan speed — SR16 1P8T (8 positions, 3 bits)
 
 | Position | b2 | b1 | b0 | Meaning |
@@ -181,18 +227,24 @@ Positions 5–7 are unused (switch has no detent there).
 
 ### Temperature — SR16 1P8T (8 positions, 3 bits)
 
-| Position | b2 | b1 | b0 | Cooling (°C) | Heating (°C) |
-|---|---|---|---|---|---|
-| 0 | 0 | 0 | 0 | 20 | 14 |
-| 1 | 0 | 0 | 1 | 22 | 16 |
-| 2 | 0 | 1 | 0 | 24 | 18 |
-| 3 | 0 | 1 | 1 | 26 | 20 |
-| 4 | 1 | 0 | 0 | 28 | 22 |
-| 5 | 1 | 0 | 1 | 30 | 24 |
-| 6 | 1 | 1 | 0 | 32 | 26 |
-| 7 | 1 | 1 | 1 | 34 | 28 |
+The raw code (`b2 b1 b0`) is the natural-binary reading of the three lines. The
+temp knob is wired **reversed** — raw 0 is the rightmost detent = warmest — so the
+temperature counts *down* with raw code. The firmware absorbs this in a per-mode
+lookup table (`TEMP_C[isHeat][raw]`), 1 °C steps, matching
+[00_specifications.md §4.3](00_specifications.md):
 
-Firmware: `temp_C = position * 2 + (mode == HEAT ? 14 : 20)`
+| Raw code | b2 | b1 | b0 | Detent | Cooling (°C) | Heating (°C) |
+|---|---|---|---|---|---|---|
+| 0 | 0 | 0 | 0 | rightmost | 31 | 21 |
+| 1 | 0 | 0 | 1 | | 30 | 20 |
+| 2 | 0 | 1 | 0 | | 29 | 19 |
+| 3 | 0 | 1 | 1 | | 28 | 18 |
+| 4 | 1 | 0 | 0 | | 27 | 17 |
+| 5 | 1 | 0 | 1 | | 26 | 16 |
+| 6 | 1 | 1 | 0 | | 25 | 15 |
+| 7 | 1 | 1 | 1 | leftmost | 24 | 14 |
+
+Firmware: `temp_C = TEMP_C[mode == HEAT ? 1 : 0][raw]` (see `applyTempPos()`).
 
 ### Wiring diagram
 
@@ -330,7 +382,7 @@ sleep  (SLEEP_MODE_PWR_DOWN, all lines PCINT-armed)
   ▼
 wake
   read Fan (3b), Mode (3b), Temp (3b) with debounce
-  apply temp offset: temp_C = pos * 2 + (mode == HEAT ? 14 : 20)
+  map temp: temp_C = TEMP_C[mode == HEAT ? 1 : 0][raw]  (1 °C steps, raw reversed)
   read Swing toggle state
   if any knob position changed, or Resend pressed:
       build Daikin frame, transmit IR, flash TX LED

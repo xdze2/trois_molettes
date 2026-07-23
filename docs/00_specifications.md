@@ -54,23 +54,28 @@ Fan position 0 is Off. This makes the fan knob the primary on/off control — th
 One 8-position switch covers both heating and cooling ranges via a mode-dependent offset
 applied in firmware:
 
-| Position | Cooling (Cool/Fan/Dry/Auto) | Heating (Heat) |
-|---|---|---|
-| 0 | 20 °C | 14 °C |
-| 1 | 22 °C | 16 °C |
-| 2 | 24 °C | 18 °C |
-| 3 | 26 °C | 20 °C |
-| 4 | 28 °C | 22 °C |
-| 5 | 30 °C | 24 °C |
-| 6 | 32 °C | 26 °C |
-| 7 | 34 °C | 28 °C |
+The table is indexed by **raw gpio code**, matching the firmware's `TEMP_C` table.
+The knob is wired reversed — raw 0 is the **rightmost** detent = warmest, raw 7 the
+leftmost = coldest — so the ranges count *down* with raw code, absorbing the wiring
+reversal into row order (same convention as the Fan/Mode knobs):
 
-2 °C steps throughout. The mode knob position determines which mapping is active —
+| Raw code | Detent | Cooling (Cool/Fan/Dry/Auto) | Heating (Heat) |
+|---|---|---|---|
+| 0 | rightmost | 31 °C | 21 °C |
+| 1 | | 30 °C | 20 °C |
+| 2 | | 29 °C | 19 °C |
+| 3 | | 28 °C | 18 °C |
+| 4 | | 27 °C | 17 °C |
+| 5 | | 26 °C | 16 °C |
+| 6 | | 25 °C | 15 °C |
+| 7 | leftmost | 24 °C | 14 °C |
+
+1 °C steps throughout. The mode knob position determines which mapping is active —
 the physical temp knob position is unambiguous, the firmware applies the correct range.
 
 **Alternative considered:** two RS1010 switches (5×5 = 25 positions) for finer
 resolution. Rejected: doubles the switch count, complicates the panel layout, and
-2 °C steps cover the practical daily-use range adequately.
+1 °C steps over an 8-position range cover the practical daily-use range adequately.
 
 ### 4.4 Send — 1 push button
 
@@ -114,7 +119,7 @@ Single LED, brief flash on IR send. No mode indicators, no temperature bar — t
 ## 9. Open Questions
 
 1. **Swing support** — Confirm the FTXM20N2V1B accepts swing toggle via IR.
-2. **Temperature mapping validation** — Confirm the Daikin IR protocol accepts 2 °C step targets across both ranges (14–28 °C heating, 20–34 °C cooling).
+2. **Temperature mapping validation** — Confirm the Daikin IR protocol accepts 1 °C step targets across both ranges (14–21 °C heating, 24–31 °C cooling).
 3. **6-month battery target** — Hard constraint. Sleep current ≈ average current. Must be measured on bench before cell is sized. See [07_battery_and_power.md](07_battery_and_power.md).
 4. **Panel layout** — Confirm two SR16 + one RS1010 + Send button (+ optional swing toggle) fit the 80×100 mm face.
 
