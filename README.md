@@ -67,6 +67,10 @@ Lessons learned:
 | [10_software_architecture.md](docs/10_software_architecture.md)         | Firmware layers: portable Daikin frame builder, AVR HAL (Timer2/sleep), Linux mock                               |
 | [11_serial_remote_app.md](docs/11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
 
+## Firmware
+
+[firmware/daikin_knob_remote/](firmware/daikin_knob_remote/) is the deployable firmware (Arduino sketch) running on the bench prototype today. [firmware/daikin_frame.{h,cpp}](firmware/) is the portable Daikin frame builder it's built on, shared (via symlink) with the dev/bring-up sketches in [sketches/](sketches/) — see the [bench logs](#bench-logs-build-journal) for how each of those was used along the way.
+
 ## Bench logs (build journal)
 
 The [howtos/](howtos/) directory is the running record of bringing each subsystem up

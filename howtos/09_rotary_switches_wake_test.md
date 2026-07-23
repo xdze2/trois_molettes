@@ -105,7 +105,7 @@ assuming the switch itself is faulty:
 
 ## End-to-end: knob change → IR transmit → real unit
 
-[sketches/daikin_knob_remote/daikin_knob_remote.ino](../sketches/daikin_knob_remote/daikin_knob_remote.ino)
+[firmware/daikin_knob_remote/daikin_knob_remote.ino](../firmware/daikin_knob_remote/daikin_knob_remote.ino)
 combines this bring-up's validated Fan + Mode readout with the IR TX path from
 `daikin_serial` / `daikin_fan_toggle`. It's a near-final knob firmware: Temp is
 not wired yet (see Next below) so it's held at a fixed 24 °C, but Fan and Mode

@@ -193,14 +193,19 @@ ir_mock/
   Makefile
 
 firmware/
-  main.cpp             ← AVR entry point (same app logic as Linux)
   daikin_frame.h
-  daikin_frame.cpp     ← portable Daikin frame builder
-  inputs.h             ← GPIO pin assignment (TBD)
-  hal_avr.cpp          ← AVR HAL (Timer2, GPIO, sleep)
+  daikin_frame.cpp             ← portable Daikin frame builder (canonical copy)
+  daikin_knob_remote/          ← the deployable firmware — Arduino sketch
+    daikin_knob_remote.ino
+    daikin_frame.{h,cpp}       ← symlinks to ../daikin_frame.{h,cpp}
+
+sketches/
+  daikin_serial/, daikin_fan_toggle/, ...   ← dev/bring-up/test sketches;
+    daikin_frame.{h,cpp} symlinked to ../../firmware/daikin_frame.{h,cpp}
+    where the sketch needs the frame builder
 ```
 
-The `main.cpp` app logic is shared between Linux and firmware builds via `#include` or a common source file — the only compile-time difference is which HAL is linked.
+`firmware/` holds the real, deployable firmware: the shared `daikin_frame.{h,cpp}` frame builder plus the `daikin_knob_remote` sketch that runs on the bench hardware today. The bare-AVR HAL (`hal_avr.cpp`, a standalone `main.cpp`) described in earlier drafts of this doc was superseded by building directly on the Arduino framework — `daikin_knob_remote.ino` plays that role instead. `sketches/` holds everything else: earlier milestones and one-off dev/test sketches used during bring-up (see the [bench logs](../howtos/)).
 
 ---
 
