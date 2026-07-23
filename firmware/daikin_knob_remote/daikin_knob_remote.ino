@@ -53,25 +53,78 @@
 #define DAIKIN_SECTION_GAP 35000
 
 // ---------------------------------------------------------------------------
-// Rotary switches — Fan + Mode (see howtos/09_rotary_switches_wake_test.md)
+// Knob configuration — one declarative table per knob
+// ===========================================================================
+//
+// The complete knob mapping lives here and NOWHERE else. Each knob is ONE
+// table, indexed directly by the raw gpio reading — row N is the meaning of
+// raw code N. The human-readable `label` and the value written into ACState
+// live in the SAME row, so they can never drift out of sync, and there is no
+// separate raw->position remap table to keep in step (the old code split this
+// across fanMeaning()/modeMeaning(), applyFanPos()/applyModePos(), AND a
+// FAN_RAW_TO_POS array — three things to keep aligned by hand).
+//
+// The rows are therefore ordered by *raw code*, not by panel position — so any
+// diode shift / reversed rotation / pin swap is absorbed directly into the row
+// order here. To verify a knob: turn it left->right, watch the `raw=` values on
+// the CHANGE line, and confirm FAN_POS[raw] names what the panel says.
+
+// --- Fan knob (SR16, 8 positions), indexed by raw gpio code ---------------
+// power=false marks the Off detent (fan value is then don't-care).
+// Row order set from the bench sweep (howto 09): leftmost detent reads raw=0.
+struct FanPos { const char *label; bool power; uint8_t fan; };
+// IMPORTANT: rows are indexed by raw code — FAN_POS[raw] must be raw's meaning,
+// so the row order here MUST stay sorted by the /* raw N */ tag (0,1,2,...).
+// Do not reorder into panel order; that breaks the direct-index contract.
+const FanPos FAN_POS[8] = {
+    { "Auto",    true,  DAIKIN_FAN_AUTO  },  // right most, wiring error
+    { "Off",     false, DAIKIN_FAN_AUTO  },  // leftmost — confirmed
+    { "Speed 1", true,  DAIKIN_FAN_1     },  //
+    { "Speed 2", true,  DAIKIN_FAN_2     },  //
+    { "Speed 3", true,  DAIKIN_FAN_3     },  //
+    { "Speed 4", true,  DAIKIN_FAN_4     },  // 
+    { "Speed 5", true,  DAIKIN_FAN_5     },  // wiring error... 
+    { "Quiet",   true,  DAIKIN_FAN_QUIET },  //
+};
+
+// --- Mode knob (RS1010, 5 positions), indexed by raw gpio code ------------
+// Bench-validated left->right per howto 09 (Fan/Cool/Heat/Dry/Auto = raw 0..4);
+// re-confirm against the panel now that the log prints raw=.
+struct ModePos { const char *label; uint8_t mode; };
+const ModePos MODE_POS[5] = {
+    { "Auto", DAIKIN_MODE_AUTO },
+    { "Dry",  DAIKIN_MODE_DRY  },
+    { "Heat", DAIKIN_MODE_HEAT },
+    { "Cool", DAIKIN_MODE_COOL },
+    { "Fan",  DAIKIN_MODE_FAN  },
+};
+
+// --- Temp knob (SR16, 8 positions), left -> right -------------------------
+// Position -> degrees C is a formula, not a table: mode-dependent base + 2*pos
+// (Heat 14-28C, else 20-34C; 00_specifications.md 4.3). See applyTempPos().
+const uint8_t N_TEMP_POS = 8;
+
+const uint8_t N_FAN_POS  = sizeof(FAN_POS)  / sizeof(FAN_POS[0]);
+const uint8_t N_MODE_POS = sizeof(MODE_POS) / sizeof(MODE_POS[0]);
+
+// ---------------------------------------------------------------------------
+// Rotary switches — pins + last-seen raw code. There is no raw->position
+// remap here anymore: the per-knob POS tables above are already ordered by raw
+// code, so the raw gpio reading indexes them directly. Any diode shift / pin
+// swap / reversal is absorbed into that row order. See howto 09.
 // ---------------------------------------------------------------------------
 struct Switch {
     const char *name;
     uint8_t pins[3];
-    const uint8_t *rawToPos;  // raw code -> logical position table, or nullptr for identity
     uint8_t lastCode;
 };
-
-// Fan diode encoding is shifted by one position; remap raw code -> logical
-// position rather than re-wiring the diodes. See howto 09.
-const uint8_t FAN_RAW_TO_POS[8] = {0, 7, 6, 5, 4, 3, 2, 1};
 
 enum { SW_FAN = 0, SW_MODE = 1, SW_TEMP = 2 };
 
 Switch switches[] = {
-    { "Fan",  {10, 11, 12}, FAN_RAW_TO_POS, 0xFF },
-    { "Mode", {A2, A1, A0}, nullptr,        0xFF },  // pin order per howto 09 fix
-    { "Temp", {6,  5,  4},  nullptr,        0xFF },  // b0/b2 pins swapped vs. design doc; see howto 09
+    { "Fan",  {10, 11, 12}, 0xFF },
+    { "Mode", {A2, A1, A0}, 0xFF },  // pin order per howto 09 fix
+    { "Temp", {6,  5,  4},  0xFF },  // b0/b2 pins swapped vs. design doc; see howto 09
 };
 const uint8_t N_SWITCHES = sizeof(switches) / sizeof(switches[0]);
 const uint8_t N_BITS = 3;
@@ -182,62 +235,52 @@ uint8_t readDebouncedCode(const uint8_t pins[N_BITS]) {
 }
 
 // ---------------------------------------------------------------------------
-// Position -> Daikin protocol value mapping
+// Position -> Daikin protocol value mapping — thin lookups into the per-knob
+// tables above. All the actual mapping knowledge lives in FAN_POS / MODE_POS.
 // ---------------------------------------------------------------------------
 const char *fanMeaning(uint8_t pos) {
-    switch (pos) {
-        case 0: return "Off";
-        case 1: return "Speed 1";
-        case 2: return "Speed 2";
-        case 3: return "Speed 3";
-        case 4: return "Speed 4";
-        case 5: return "Speed 5";
-        case 6: return "Quiet";
-        case 7: return "Auto";
-    }
-    return "?";
+    return (pos < N_FAN_POS) ? FAN_POS[pos].label : "?";
 }
 
 const char *modeMeaning(uint8_t pos) {
-    switch (pos) {
-        case 0: return "Fan";
-        case 1: return "Cool";
-        case 2: return "Heat";
-        case 3: return "Dry";
-        case 4: return "Auto";
+    return (pos < N_MODE_POS) ? MODE_POS[pos].label : "?";
+}
+
+// One knob's contribution to the "CHANGE" line, e.g. "  Mode raw=4 (Auto)".
+// raw is the gpio reading, which is also the index into the POS tables.
+void printKnobChange(uint8_t s, uint8_t raw) {
+    Serial.print("  ");
+    Serial.print(switches[s].name);
+    Serial.print(" raw=");
+    Serial.print(raw);
+    if (s == SW_FAN || s == SW_MODE) {
+        Serial.print(" (");
+        Serial.print(s == SW_FAN ? fanMeaning(raw) : modeMeaning(raw));
+        Serial.print(")");
     }
-    return "?";
 }
 
 // Fan knob position (0..7, 00_specifications.md 4.1) -> ACState fields.
-// Position 0 is Off (power=false); fan value is don't-care when off.
 void applyFanPos(uint8_t pos, ACState *st) {
-    if (pos == 0) {
-        st->power = false;
-        st->fan   = DAIKIN_FAN_AUTO;
-        return;
-    }
-    st->power = true;
-    if (pos == 6)      st->fan = DAIKIN_FAN_QUIET;
-    else if (pos == 7) st->fan = DAIKIN_FAN_AUTO;
-    else                st->fan = (uint8_t)(pos + 2);  // 1..5 -> wire 3..7
+    if (pos >= N_FAN_POS) pos = 0;  // out-of-range -> Off, fail safe
+    st->power = FAN_POS[pos].power;
+    st->fan   = FAN_POS[pos].fan;
 }
 
 // Mode knob position (0..4, 00_specifications.md 4.2) -> ACState.mode.
 void applyModePos(uint8_t pos, ACState *st) {
-    switch (pos) {
-        case 0: st->mode = DAIKIN_MODE_FAN;  break;
-        case 1: st->mode = DAIKIN_MODE_COOL; break;
-        case 2: st->mode = DAIKIN_MODE_HEAT; break;
-        case 3: st->mode = DAIKIN_MODE_DRY;  break;
-        case 4: st->mode = DAIKIN_MODE_AUTO; break;
-        default: st->mode = DAIKIN_MODE_AUTO; break;
-    }
+    if (pos >= N_MODE_POS) pos = N_MODE_POS - 1;  // out-of-range -> Auto
+    st->mode = MODE_POS[pos].mode;
 }
 
-// Temp knob position (0..7, 05_electronics_circuit.md §2) -> degrees C.
+// Temp knob raw code (0..7, 05_electronics_circuit.md §2) -> degrees C.
 // Mode-dependent offset: Heat uses 14-28C, everything else uses 20-34C,
 // both in 2C steps (00_specifications.md 4.3).
+//
+// Unlike Fan/Mode, Temp is a formula not a table, so a shifted or reversed
+// Temp knob can't be absorbed into row order — it must be corrected here.
+// Temp is not yet bench-verified (see howto 09 "Next"); if the sweep shows it
+// reversed, map raw->pos first, e.g.  pos = (N_TEMP_POS - 1) - raw;
 uint8_t applyTempPos(uint8_t pos, uint8_t mode) {
     uint8_t base = (mode == DAIKIN_MODE_HEAT) ? 14 : 20;
     return base + pos * 2;
@@ -272,34 +315,37 @@ void loop() {
     // *is* the state — no separate Send button, per 11_serial_remote_app.md's
     // stateless-device model).
     bool anyChanged = false;
-    uint8_t pos[N_SWITCHES];
+    uint8_t raw[N_SWITCHES];
+    bool    changed[N_SWITCHES];
 
+    // First: read every knob, recording which ones moved. The raw gpio code
+    // *is* the index into the POS tables, so there's no separate decode step.
+    // Print nothing yet — the "what changed" line (below) is emitted once,
+    // listing only the moved knobs with their raw reading.
     for (uint8_t s = 0; s < N_SWITCHES; s++) {
-        uint8_t code = readDebouncedCode(switches[s].pins);
-        pos[s] = switches[s].rawToPos ? switches[s].rawToPos[code] : code;
-        if (pos[s] != switches[s].lastCode) {
-            Serial.print(switches[s].name);
-            Serial.print(": pos=");
-            Serial.print(pos[s]);
-            if (s == SW_FAN || s == SW_MODE) {
-                Serial.print(" (");
-                Serial.print(s == SW_FAN ? fanMeaning(pos[s]) : modeMeaning(pos[s]));
-                Serial.print(")");
-            }
-            Serial.println();
-            switches[s].lastCode = pos[s];
+        raw[s] = readDebouncedCode(switches[s].pins);
+        changed[s] = (raw[s] != switches[s].lastCode);
+        if (changed[s]) {
+            switches[s].lastCode = raw[s];
             anyChanged = true;
         }
     }
 
     if (anyChanged) {
-        sendCurrentState(pos[SW_FAN], pos[SW_MODE], pos[SW_TEMP]);
+        // Line 1: what changed (with raw gpio reading). Only moved knobs listed.
+        Serial.print("CHANGE");
+        for (uint8_t s = 0; s < N_SWITCHES; s++) {
+            if (changed[s]) printKnobChange(s, raw[s]);
+        }
+        Serial.println();
+        // Lines 2 & 3: what is sent, then raw bytes.
+        sendCurrentState(raw[SW_FAN], raw[SW_MODE], raw[SW_TEMP]);
     } else if (resendButtonPressed()) {
         // Resend: retransmit current knob state unchanged, without requiring
         // a knob move (00_specifications.md "resend action" /
         // 01_IR_protocol_and_mapping.md RESEND).
-        Serial.println("RESEND");
-        sendCurrentState(pos[SW_FAN], pos[SW_MODE], pos[SW_TEMP]);
+        Serial.println("CHANGE (resend)");
+        sendCurrentState(raw[SW_FAN], raw[SW_MODE], raw[SW_TEMP]);
     }
 }
 

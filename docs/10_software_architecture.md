@@ -18,6 +18,8 @@ loop()
   else if Resend pressed → re-transmit current state
 ```
 
+Each transmit logs three lines to Serial: `CHANGE` (which knobs moved, with both the raw gpio reading `raw=` and the decoded `pos=`/label — so a mis-wired or reversed knob shows as a raw↔pos mismatch), `SEND` (the decoded AC state), then `SENT` (the 35 raw frame bytes in hex). The `SEND`/`SENT` labels are the filter targets used in the [howto 09](../howtos/09_rotary_switches_wake_test.md) capture examples.
+
 Every transmit re-reads and re-derives the full AC state from the knobs — there's no separate "dirty" tracking beyond noticing a switch's decoded position changed since last loop. Sleep + PCINT wake (deep sleep between reads) is a deliberately separate, later step — see [howto 09](../howtos/09_rotary_switches_wake_test.md).
 
 ---
@@ -26,7 +28,7 @@ Every transmit re-reads and re-derives the full AC state from the knobs — ther
 
 Fan, Mode and Temp are diode-encoded rotary switches, each read as a 3-bit code across 3 GPIO pins (see [05_electronics_circuit.md](05_electronics_circuit.md) for wiring). `readDebouncedCode()` polls a switch's pins every `SETTLE_MS` and requires `SETTLE_STABLE_READS` consecutive identical readings before accepting a value — this rides out the inter-detent glitching described in [howto 03](../howtos/03_rs1010_readout.md).
 
-Raw codes are remapped to logical positions per-switch (`rawToPos` table) where the diode wiring doesn't match the logical order — e.g. the Fan switch's encoding is shifted by one position (see [howto 09](../howtos/09_rotary_switches_wake_test.md)).
+Raw codes are remapped to **physical positions** per-switch (`rawToPos` table) where the diode wiring doesn't match the left→right detent order — e.g. the Fan switch's encoding is shifted by one position (see [howto 09](../howtos/09_rotary_switches_wake_test.md)). This raw→position step is the *only* place hardware quirks (diode shift, swapped pins, a reversed rotation direction) are corrected; a knob reading reversed is fixed here, not in the position→state tables below.
 
 The Resend button is a separate, simpler edge-triggered debounce (`resendButtonPressed()`) — a single hold-off delay rather than a settle loop, since it's a momentary press, not a detented position.
 
@@ -34,11 +36,11 @@ The Resend button is a separate, simpler edge-triggered debounce (`resendButtonP
 
 ## 3. Position → Daikin state
 
-Each knob position maps to a field of `ACState` (defined in `daikin_frame.h`):
+The full position→meaning mapping lives in **one declarative table per knob** (`FAN_POS`, `MODE_POS`), one row per detent in left→right panel order — so the table reads top-to-bottom exactly as the knob reads left-to-right. Each row holds both the Serial label and the resulting `ACState` value, so the two can't drift apart. `fanMeaning()`/`modeMeaning()` and `applyFanPos()`/`applyModePos()` are thin lookups into these tables (they were previously three separate `switch` statements per knob that had to be kept in sync by hand). To verify a knob against the panel you read a single table top-to-bottom.
 
-- `applyFanPos()` — position 0 is Off; 1–5 are fan speeds (wire value = position + 2); 6 is Quiet; 7 is Auto.
-- `applyModePos()` — Fan / Cool / Heat / Dry / Auto.
-- `applyTempPos()` — position → °C, with a mode-dependent base (14 °C for Heat, 20 °C otherwise) in 2 °C steps, per [00_specifications.md §4.3](00_specifications.md).
+- `FAN_POS` — position 0 is Off (`power=false`); 1–5 are fan speeds; 6 is Quiet; 7 is Auto.
+- `MODE_POS` — Fan / Cool / Heat / Dry / Auto.
+- `applyTempPos()` — stays a formula, not a table: position → °C with a mode-dependent base (14 °C for Heat, 20 °C otherwise) in 2 °C steps, per [00_specifications.md §4.3](00_specifications.md).
 
 Swing, Powerful and Econo aren't set by any knob/button yet — `ACState` is zero-initialized, so all three are always off.
 
