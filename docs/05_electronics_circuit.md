@@ -21,7 +21,8 @@ Switches are chosen on body size and detent feel; pole count is not a constraint
 
 ### Shorting vs. non-shorting contacts
 
-Rotary switches come in two contact styles, and it matters here:
+**v1: treated as non-shorting (the common variant); firmware debounce covers the
+transient.** Rotary switches come in two contact styles:
 
 - **Non-shorting (break-before-make):** the wiper fully leaves the old contact
   before touching the next. Between detents *all* code lines float to the
@@ -34,12 +35,14 @@ Rotary switches come in two contact styles, and it matters here:
 
 Either way, natural-binary encoding produces transient false codes mid-turn, which
 is why the firmware debounces (§6). The Alpha SR16 and RS1010 are treated as
-**non-shorting** here (the common variant); the §6 wake note relies on the
-all-lines-float edge, which only a non-shorting switch guarantees. If a shorting
-variant is substituted, wake still works (OR'd codes still change ≥1 line on a
-move) but the extra float edges disappear — confirm the part's contact style
-before ordering. This transient-code problem is the one that **Gray-code
-encoding removes** regardless of contact style — see §3.
+non-shorting here; the §6 wake note relies on the all-lines-float edge, which only a
+non-shorting switch guarantees. If a shorting variant is substituted, wake still
+works (OR'd codes still change ≥1 line on a move) but the extra float edges
+disappear.
+
+> **v2 decision.** Confirm the part's contact style **before ordering** for the PCB
+> build. This transient-code problem is the one that **Gray-code encoding removes**
+> regardless of contact style (see §3), so the two decisions are linked.
 
 ### Fan speed — Alpha SR16 1P8T
 
@@ -179,26 +182,24 @@ The temperature range offset (heating vs cooling) is applied in firmware based o
 
 #### Natural binary vs. Gray code
 
-The tables below use **natural binary**, so adjacent positions can differ in more
-than one bit — e.g. Fan 3→4 goes `011`→`100`, flipping all three lines at once.
-If those lines don't switch in the same instant (contact skew, or the momentary
-all-open float of a non-shorting switch — see §1), the decoder can briefly read a
-bogus in-between code (7, 5, 1…). That transient is exactly what the §6 debounce
-settle-loop exists to filter out.
+**v1 uses natural binary** for readability — the diode pattern *is* the position
+number — and relies on the firmware debounce (§6) instead of the encoding to reject
+transients. Adjacent positions can therefore differ in more than one bit: Fan 3→4
+goes `011`→`100`, flipping all three lines at once. If those lines don't switch in
+the same instant (contact skew, or the momentary all-open float of a non-shorting
+switch — see §1), the decoder can briefly read a bogus in-between code (7, 5, 1…).
+That transient is exactly what the §6 debounce settle-loop filters out.
 
-**Gray code** (a.k.a. reflected binary code) is the encoding where **consecutive
-positions differ by exactly one bit**. With a Gray-coded switch, any single-step
-move flips only one line, so a mid-transition read is always either the old
-position or the new one — never a spurious third value. That would remove the need
-for the multi-read settle window entirely (a one-shot read plus a short bounce
-hold-off would suffice), at the cost of a firmware Gray→binary decode step and a
-different diode pattern per position.
-
-This design keeps **natural binary** for readability (the diode pattern *is* the
-position number) and relies on the firmware debounce instead. If contact skew or
-non-shorting float ever proves troublesome on the bench, re-wiring the diodes to a
-Gray sequence is the hardware fix — decode in firmware with
-`binary = gray ^ (gray >> 1) ^ (gray >> 2)` for a 3-bit code.
+> **v2 decision — Gray code vs. debounce.** **Gray code** (reflected binary) is the
+> encoding where **consecutive positions differ by exactly one bit**. With a
+> Gray-coded switch, any single-step move flips only one line, so a mid-transition
+> read is always either the old position or the new one — never a spurious third
+> value. That would **remove the need for the multi-read settle window entirely** (a
+> one-shot read plus a short bounce hold-off would suffice), at the cost of a
+> firmware Gray→binary decode step (`binary = gray ^ (gray >> 1) ^ (gray >> 2)` for a
+> 3-bit code) and a different diode pattern per position. Decide this alongside the
+> PCB layout; if contact skew or non-shorting float proves troublesome on the
+> assembled board, re-wiring the diodes to a Gray sequence is the hardware fix.
 
 ### Fan speed — SR16 1P8T (8 positions, 3 bits)
 
@@ -245,6 +246,17 @@ lookup table (`TEMP_C[isHeat][raw]`), 1 °C steps, matching
 | 7 | 1 | 1 | 1 | leftmost | 24 | 14 |
 
 Firmware: `temp_C = TEMP_C[mode == HEAT ? 1 : 0][raw]` (see `applyTempPos()`).
+
+This raw-code-indexed table is also how every knob's wiring is corrected in
+software: each per-knob table (`FAN_POS`, `MODE_POS`, `TEMP_C`) is indexed directly
+by the raw GPIO reading, so any diode shift / reversed rotation / pin swap is
+absorbed into the row order — a knob wired "wrong" is fixed by editing one table,
+not by re-soldering.
+
+> **v2 decision — fix wiring in software.** Keep this. Indexing each knob table by
+> raw code is the low-risk way to reconcile whatever the PCB ends up routing, with
+> no physical wiring convention to chase. The firmware already works this way; v2
+> carries it forward.
 
 ### Wiring diagram
 

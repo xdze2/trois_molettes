@@ -3,7 +3,7 @@
 ## 1. Motivation
 
 1. Build something cool and learn by doing it.
-2. Replace the original remote — a fragile, app-dependent, non-repairable black box — with something tangible, simple, robust, low-complexity, screenless, app-less, open-source, and repairable.
+2. Get a nice tangible, simple, robust, low-complexity, screenless, app-less, open-source Daikin AC remote.
 
 ## 2. Target AC Unit
 
@@ -19,16 +19,21 @@ The WiFi adapter and REST API are explicitly out of scope. This device communica
 
 **The physical position of every knob and button reflects the full state of the system.** No hidden state, no screen, nothing to synchronize — look at the device and you know what it will send next. This drives every interface decision below.
 
+The IR protocol is one-way: it does not return status from the unit (current temperature, etc.), so no richer feedback is needed or possible. The only feedback is the audible beep from the AC unit itself.
+
 Implications:
 - All controls are hardware (rotary switches, physical buttons) — not virtual or touch-based.
-- The IR protocol does not return status from the unit (current temperature, etc.), so no richer feedback is needed or possible.
 - A "resend" action retransmits whatever the knobs currently show — no stored state to diverge from physical position.
 
 ## 4. Controls & Functions
 
 Controls are ordered by frequency of use.
 
-### 4.1 Fan speed — 8-position rotary (SR16, daily use)
+Rotary switches are the logical choice here: they are stateless and tangible (a rotary *encoder*, by contrast, is not stateless — it only reports movement, not absolute position).
+
+Off-the-shelf rotary switches commonly offer 3 to 12 positions; the mapping below is designed around that range.
+
+### 4.1 Fan speed — 8-position rotary
 
 | Position | Meaning |
 |---|---|
@@ -39,7 +44,7 @@ Controls are ordered by frequency of use.
 
 Fan position 0 is Off. This makes the fan knob the primary on/off control — the one touched every day.
 
-### 4.2 Mode — 5-position rotary (RS1010)
+### 4.2 Mode — 5-position rotary
 
 | Position | Mode |
 |---|---|
@@ -49,33 +54,35 @@ Fan position 0 is Off. This makes the fan knob the primary on/off control — th
 | 3 | Dry |
 | 4 | Auto |
 
-### 4.3 Temperature — 8-position rotary (SR16), mode-dependent mapping
+### 4.3 Temperature — 8-position rotary, mode-dependent range
 
-One 8-position switch covers both heating and cooling ranges via a mode-dependent offset
-applied in firmware:
+Fitting the full temperature range onto 8 positions takes a small trick: a mode-dependent mapping. One 8-position switch covers both heating and cooling ranges. The knob turns from
+**coldest at the leftmost detent to warmest at the rightmost**; the active mode
+selects which range those eight detents span:
 
-The table is indexed by **raw gpio code**, matching the firmware's `TEMP_C` table.
-The knob is wired reversed — raw 0 is the **rightmost** detent = warmest, raw 7 the
-leftmost = coldest — so the ranges count *down* with raw code, absorbing the wiring
-reversal into row order (same convention as the Fan/Mode knobs):
+| Detent (left → right) | Cooling (Cool/Fan/Dry/Auto) | Heating (Heat) |
+|---|---|---|
+| leftmost | 24 °C | 14 °C |
+| | 25 °C | 15 °C |
+| | 26 °C | 16 °C |
+| | 27 °C | 17 °C |
+| | 28 °C | 18 °C |
+| | 29 °C | 19 °C |
+| | 30 °C | 20 °C |
+| rightmost | 31 °C | 21 °C |
 
-| Raw code | Detent | Cooling (Cool/Fan/Dry/Auto) | Heating (Heat) |
-|---|---|---|---|
-| 0 | rightmost | 31 °C | 21 °C |
-| 1 | | 30 °C | 20 °C |
-| 2 | | 29 °C | 19 °C |
-| 3 | | 28 °C | 18 °C |
-| 4 | | 27 °C | 17 °C |
-| 5 | | 26 °C | 16 °C |
-| 6 | | 25 °C | 15 °C |
-| 7 | leftmost | 24 °C | 14 °C |
+1 °C steps throughout. The mode knob determines which range is active — the physical
+temp knob position is unambiguous, and the correct range is applied automatically.
+The panel labelling must make the mode-dependent scale clear.
 
-1 °C steps throughout. The mode knob position determines which mapping is active —
-the physical temp knob position is unambiguous, the firmware applies the correct range.
+(The protocol itself allows 0.5 °C steps, unused here.)
 
-**Alternative considered:** two RS1010 switches (5×5 = 25 positions) for finer
-resolution. Rejected: doubles the switch count, complicates the panel layout, and
-1 °C steps over an 8-position range cover the practical daily-use range adequately.
+**Alternatives considered:**
+- Two switches (5×5 = 25 positions) for finer resolution. Rejected: doubles the
+  switch count, complicates the panel layout, and 1 °C steps over an 8-position
+  range cover the practical daily-use band adequately.
+- A continuous potentiometer instead of a detented switch — possible, but loses the
+  discrete, labelled detents that make the setting readable at a glance.
 
 ### 4.4 Send — 1 push button
 
@@ -89,14 +96,14 @@ Support depends on what the FTXM20N2V1B accepts via IR — to be confirmed.
 
 ## 5. Feedback
 
-Single LED, brief flash on IR send. No mode indicators, no temperature bar — the knob positions are the feedback.
+The knob positions *are* the feedback — there are no mode or temperature indicators. A single LED gives a brief flash on IR send to confirm the device is alive; the substantive confirmation is the AC unit's own beep (see §3).
 
 ## 6. Power
 
 - Battery powered, fully untethered.
 - **Target battery life: more than 6 months** on a single charge (goal: years) — a hard constraint driving MCU selection and sleep strategy.
-- USB charging port on the enclosure.
-- Low-battery indicator: nice to have.
+- USB charging port on the enclosure, if needed.
+- Low-battery indicator: not included.
 
 ## 7. Physical Form
 
@@ -107,6 +114,8 @@ Single LED, brief flash on IR send. No mode indicators, no temperature bar — t
 - **All rotary controls and buttons on the top face.**
 - 3D-printed enclosure. Design must be solid, well-made, and visually intentional — not a prototype box.
 
+Rotary switches take noticeable torque to turn, so the device must be held with both hands — or, if wall-mounted, fixed firmly enough (at least two screws) to turn a knob one-handed without the whole unit twisting.
+
 ## 8. Non-functional Requirements
 
 - **Open source** — hardware design, firmware, and enclosure files published.
@@ -116,11 +125,10 @@ Single LED, brief flash on IR send. No mode indicators, no temperature bar — t
 - Low complexity — the firmware should be small and auditable.
 - **BOM cost: < €35 total** (excluding enclosure and tools). This is a hard constraint on component selection.
 
-## 9. Open Questions
 
-1. **Swing support** — Confirm the FTXM20N2V1B accepts swing toggle via IR.
-2. **Temperature mapping validation** — Confirm the Daikin IR protocol accepts 1 °C step targets across both ranges (14–21 °C heating, 24–31 °C cooling).
-3. **6-month battery target** — Hard constraint. Sleep current ≈ average current. Must be measured on bench before cell is sized. See [07_battery_and_power.md](07_battery_and_power.md).
-4. **Panel layout** — Confirm two SR16 + one RS1010 + Send button (+ optional swing toggle) fit the 80×100 mm face.
+## 9. Nice to have (out of scope for v1)
 
-Resolved: MCU = ATmega328P (Pro Mini 3.3 V), on hand, sufficient for this design. Readout = diode encoding on 1P switches. Feedback = single TX LED.
+Both would add significant complexity and are deliberately excluded from v1:
+
+- Actual room-temperature indicator — needs a screen plus a thermometer (or the WiFi protocol to read the unit back).
+- Time-scheduling functions — needs a clock and stored state, breaking the stateless principle.
