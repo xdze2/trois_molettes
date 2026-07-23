@@ -124,6 +124,13 @@ Rotary switches take noticeable torque to turn, so the device must be held with 
 - **No screen.**
 - Low complexity — the firmware should be small and auditable.
 - **BOM cost: < €35 total** (excluding enclosure and tools). This is a hard constraint on component selection.
+- **No surface-mount assembly.** Every component must be hand-buildable without
+  PCB fabrication or SMD reflow: through-hole parts (DIP, TO-92, 5 mm LEDs, 1N4148
+  THT) on perfboard, or a pre-built dev-board / module carried on 2.54 mm headers.
+  This is a hard constraint on both the MCU (rules out bare-die QFN solutions) and
+  the passives (diode encoding uses THT 1N4148, not SOT-23 arrays) — see
+  [03_microcontroller_choice.md](03_microcontroller_choice.md) and
+  [05_electronics_circuit.md](05_electronics_circuit.md).
 
 ### 8.1 Constraints imposed by the Daikin IR frame
 

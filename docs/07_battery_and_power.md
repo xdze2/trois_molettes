@@ -8,17 +8,36 @@ for switch wiring and pull-down leakage see [05_electronics_circuit.md](05_elect
 
 ## 1. Power architecture
 
+Two paths, and the **recommended one bypasses regulation entirely**. Because sleep
+dominates the whole energy budget, any always-on regulator quiescent (the Pro Mini's
+~75 µA LDO) is the enemy — so the preferred architecture removes it.
+
+**Recommended — 2×AAA direct drive (no regulator):**
+
+```
+2× AAA alkaline/lithium (1.8–3.2 V across discharge)
+  └── VCC ──► ATmega328P (runs 1.8–5.5 V, LDO bypassed — see §4)
+                └── rail ──► switch wipers (diode encoding)
+                         ──► IR LED driver (via transistor, §5 bulk cap)
+```
+
+No LDO, no TP4056, no charge IC — sleep floor drops to ~4 µA (MCU + pull-down leakage),
+fully through-hole (no-SMD). This is what reaches the "years" goal. It is contingent on
+two bench checks (§6): IR forward drop and diode-readout thresholds must both hold at
+the ~1.8 V low end.
+
+**Alternative — Li-Po + regulator (if the 1.8 V checks fail, or USB-C recharge wanted):**
+
 ```
 Li-Po cell (3.7 V nominal, 3.0–4.2 V range)
   └── TP4056 module (charge + DW01A protection)
         └── VBAT ──► ATmega328P Pro Mini 3.3 V (onboard LDO)
-                        └── 3.3 V rail ──► switch wipers (diode encoding)
-                                       ──► IR LED driver (via transistor, §2 bulk cap)
+                        └── 3.3 V rail ──► switch wipers / IR driver
 ```
 
-- **TP4056 module** handles charge from USB-C, over-discharge cutoff (DW01A), and over-current protection. No separate components needed.
-- **Pro Mini LDO** (MIC5205 or equivalent) regulates battery to 3.3 V for the MCU and switch wipers. Its quiescent current (~50–100 µA) is the dominant sleep term on this board — see §3.
-- The switch wiper rail is not gated: the settled code must stay on the lines during sleep for PCINT wake to work (see [05 §3](05_electronics_circuit.md)).
+- **TP4056 module** handles charge from USB-C, over-discharge cutoff (DW01A), and over-current protection.
+- **Pro Mini LDO** (MIC5205 or equivalent) regulates to 3.3 V. Its quiescent current (~50–100 µA) is the dominant sleep term on this path — see §3. This is the term the recommended path avoids.
+- The switch wiper rail is not gated on either path: the settled code must stay on the lines during sleep for PCINT wake to work (see [05 §3](05_electronics_circuit.md)).
 
 ---
 
@@ -81,13 +100,15 @@ See [06_IR_LED_wiring.md §Bulk Capacitor](06_IR_LED_wiring.md) for sizing detai
 
 ---
 
-## 6. Alkaline (AAA / AA) as an alternative to Li-Po
+## 6. Alkaline (AAA / AA) — the recommended power source
 
-The Li-Po + TP4056 stack is convenient (USB-C recharge, integrated protection) but
-adds a charge IC, a soft-pouch cell that's awkward to mount, and a chemistry that's
-overkill for a device drawing ~100 µA. Because sleep dominates and years-long life
-is plausible even at sub-mA, **primary alkaline cells are worth considering** — a
-user swaps them once a year or two rather than plugging in a cable.
+This is the recommended architecture (§1); this section is the rationale and the
+low-voltage checks it depends on. The Li-Po + TP4056 stack is convenient (USB-C
+recharge, integrated protection) but adds a charge IC, a soft-pouch cell that's awkward
+to mount, an SMD-heavy module, and a chemistry that's overkill for a device drawing
+~100 µA. Because sleep dominates and years-long life is plausible even at sub-mA,
+**primary alkaline cells are the better fit** — a user swaps them once a year or two
+rather than plugging in a cable, and the 2-cell path removes the regulator entirely.
 
 ### Capacity vs. Li-Po
 
@@ -141,8 +162,11 @@ headroom, prefer 3 × AAA + a low-dropout 3.3 V regulator, or keep the boost/Li-
   and alkaline self-discharge / leakage over multi-year storage is a real risk (lithium
   primary AAA — Energizer L92 — avoids leakage and adds capacity if that matters).
 
-This stays open until bench sleep-current is measured (§3): the LDO-vs-direct-drive
-decision only pays off once we know the real floor.
+**Remaining validation:** the direct-drive path is recommended but not yet proven on
+the assembled board. Two must-pass bench checks (§3, and the 1.8 V checks above) gate
+it: (a) measure assembled sleep current in `SLEEP_MODE_PWR_DOWN` on the 2×AAA rail;
+(b) confirm the IR forward drop and diode-readout thresholds still work at ~1.8 V. If
+(b) fails, fall back to the Li-Po + regulator path (§1, alternative).
 
 ---
 

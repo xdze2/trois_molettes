@@ -13,6 +13,7 @@ convenience, not a gate.
 | **Sleep current** | **hard** | Battery life ≥ 6 months (goal: years) is what makes the remote *usable* — without it it dies and the official remote becomes the fallback, defeating the project. Sleep ≈ average current, so this dominates. Budget against the **dev-board** figure, not the die. |
 | **13-pin both-edge wake** | **hard** | The diode-encoding readout ([05 §3.5](05_electronics_circuit.md#35-the-chosen-scheme--per-switch-diode-encoding)) needs ~13 input lines (9 rotary code + 4 buttons) each able to wake the MCU on either edge, from its deepest viable sleep mode. Chips that restrict deep-sleep wake to a few dedicated pins fail here. |
 | **Dev board + perfboard only** | **hard** | No PCB routing or fabrication. Build on a **hand-solderable dev board / module** on perfboard. This rules out bare-die solutions (bare RP2040 + LDO, bare WROOM) — so the board, not the die, must hit the sleep target. |
+| **No surface-mount assembly** | **hard** | Through-hole / hand-solderable only ([00 §8](00_specifications.md#8-non-functional-requirements)). A DIP-header dev board (Pro Mini) is ideal; a castellated SMD module (XIAO, WeAct) is acceptable *only* soldered to headers/breakout; a bare QFN needing a fab'd PCB is out. This favours the through-hole Pro Mini and independently weakens the two module alternatives. |
 | Power supply | hard | Direct from single Li-Po cell (3.0–4.2 V), via the board's onboard regulator or VBAT. |
 | IR library | **soft** | Off-the-shelf Daikin support (IRremoteESP8266) is an "easy-life" bonus, **not** required. The Daikin frame is a documented byte array + checksum + 38 kHz carrier ([Annex A1](A1_IR_protocol_and_mapping.md)); porting/reimplementing the transmit is accepted in-scope firmware work. The MCU is **not** constrained to library-supported chips. |
 | Cost | soft | Within the €35 BOM; clone/budget boards fine for prototype. |
@@ -79,9 +80,11 @@ Recommended additions regardless of MCU choice:
 
 ## 5. Decision
 
-**Locked: ATmega328P (Pro Mini 3.3 V), power-down + PCINT.** It clears both hard gates
-(sleep current, 13-pin both-edge wake) under the perfboard-only constraint, is on hand,
-and is the easiest of the three candidates to hand-build:
+**Locked: ATmega328P (Pro Mini 3.3 V), power-down + PCINT** — and this is now the
+**built v1**: the prototype and firmware run on it, so it is the incumbent, not a
+fallback. It clears all hard gates (sleep current, 13-pin both-edge wake, **no-SMD** —
+it's the only through-hole DIP-header candidate) under the perfboard-only constraint,
+is on hand, and is the easiest of the three candidates to hand-build:
 
 - `SLEEP_MODE_PWR_DOWN` <1 µA at the die (BOD disabled); PCINT gives hardware both-edge
   wake on all ~20 pins.
@@ -95,15 +98,25 @@ and is the easiest of the three candidates to hand-build:
 
 ### Upgrade path if the LDO floor proves too high
 
-Both alternatives clear the same hard gates at lower board-sleep current and would be
-the fallback if bench measurement shows the Pro Mini can't hit the 6-month target even
-after removing the power LED and swapping the LDO:
+First, note the cheaper escape that keeps the 328P: **bypass the Pro Mini regulator
+entirely and drive the die directly from 2×AAA (1.8–3.2 V)**, dropping the sleep floor
+from the ~75 µA LDO term to ~4 µA (MCU + pull-down leakage) with no new part — see
+[07 §6](07_battery_and_power.md#6-alkaline-aaa--aa--the-recommended-power-source). That
+reaches the "years" goal without changing MCU, and is the most no-SMD-friendly build
+(a holder and a chip). Try this before switching silicon.
+
+Only if that still disappoints do the two module alternatives apply. Both clear the
+power/wake gates at lower board-sleep current, but each carries a **no-SMD caveat**:
+they are castellated SMD modules, acceptable only soldered to a breakout/header, not
+true through-hole.
 
 - **nRF52840 (Seeed XIAO)** — ~1.5–2.4 µA board sleep (System ON, RAM retained), all
   ~48 GPIO wake with per-pin polarity and a LATCH register identifying which line
   changed. Native IR fit (PWM carrier from RAM, à la Nordic's Smart Remote 3 reference
-  design). ~€10. Cost: port the Daikin frame (same work either way) and confirm the
-  board's VBAT path doesn't leak (~20 µA on some XIAO wiring).
+  design). ~€10. **Caveat beyond SMD:** the XIAO only breaks out ~11 pins vs the ~13
+  wake lines needed — this must be resolved (multiplex, or drop a control) before it's
+  viable. Also port the Daikin frame (same work either way) and confirm the board's
+  VBAT path doesn't leak (~20 µA on some XIAO wiring).
 - **STM32L4 (WeAct/Nucleo), STOP2 mode** — ~2–4 µA, the only candidate with genuine
   hardware any-pin both-edge EXTI (no re-arm dance). Cheap boards (~€5–8), onboard
   ST-LINK/USB-DFU. Use STOP2, not STANDBY/SHUTDOWN — the deeper modes only wake on ~5

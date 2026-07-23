@@ -1,7 +1,7 @@
 Category	Component	Variant / Reference	Quantity	Unit price (€, indicative)	Notes	Decision needed?
-Microcontroller	nRF52840 dev board	Seeed Studio XIAO nRF52840	1	9–11	Preferred. ~1.5–2.4 µA board sleep, all-GPIO both-edge wake, native 38 kHz IR (PWM). Daikin frame ported (no library). Confirm pin count (~11 broken out vs ~13 needed) — see 03.	Bench-validate sleep + wake
-Microcontroller	STM32L4 board (alt.)	WeAct STM32L4 / Nucleo-L4	1	5–8	Alternative. ~2–4 µA STOP2, genuine any-pin both-edge EXTI. Use if XIAO disappoints.	Only if nRF52840 fails
-Microcontroller	ATmega328P board (alt.)	Pro Mini 3.3 V 8 MHz + USB-serial	1	3–5	Simplest build. <1 µA power-down (BOD off), PCINT both-edge. 8-bit/32 KB. Needs USB-serial to flash.	Only if both above fail
+Microcontroller	ATmega328P board (chosen — built v1)	Pro Mini 3.3 V 8 MHz + USB-serial	1	3–5	CHOSEN. v1 prototype + firmware run on it. Only through-hole/DIP-header candidate (no-SMD gate). <1 µA power-down (BOD off), PCINT both-edge, all ~20 pins. 8-bit/32 KB (ample). Needs USB-serial to flash; desolder power LED; bypass LDO (2×AAA direct) for µA sleep — see 03, 07.	Bench-measure assembled sleep current
+Microcontroller	nRF52840 dev board (v2-if-needed)	Seeed Studio XIAO nRF52840	1	9–11	Alternative only if 328P sleep floor can't be met. Castellated SMD (headers only, not true THT). ~1.5–2.4 µA sleep, native 38 kHz IR (PWM). Blocker: ~11 pins broken out vs ~13 needed — see 03.	Only if 328P fails
+Microcontroller	STM32L4 board (v2-if-needed)	WeAct STM32L4 / Nucleo-L4	1	5–8	Alternative only if 328P and XIAO fail. Castellated SMD (headers only). ~2–4 µA STOP2, genuine any-pin both-edge EXTI.	Only if 328P + XIAO fail
 IR Transmission	IR LED 940 nm	TSAL6400 or TSAL6200	2	0.20–0.50 each	Buy 2: one for prototype, one spare. 5 mm through-hole.	No
 IR Transmission	NPN transistor	2N2222A (TO-92) or S8050	3	0.10–0.20 each	IR LED driver, ~100 mA peak. Buy a few spares.	No
 IR Transmission	Resistor 100 Ω (LED current limit)	Through-hole 1/4W	5	0.05 each	For IR LED drive circuit. Buy a strip.	No
@@ -14,8 +14,9 @@ LEDs — TX indicator	Simple LED 3 mm red or green	Any standard 3 mm LED	2	0.10 
 Resistor — LED current limit	Resistor 330 Ω	Through-hole 1/4W	5	0.05 each	For simple TX LED current limit.	No
 Push buttons	Momentary tactile switch	6×6 mm PCB tactile switch (e.g. TS-A series)	6	0.10–0.30 each	4 buttons (PWR/ECO/SWING/RESEND). Buy a few extras.	No
 Decoupling capacitors	100 nF ceramic capacitor	0.1 µF 50 V through-hole or SMD	10	0.05 each	Power supply decoupling on MCU.	No
-Power — battery	Li-Po battery	3.7 V, 1000–2000 mAh, single cell	1	5–12	Size TBD once enclosure layout is known. 1000 mAh = weeks at ~1 mA average.	YES — size after enclosure
-Power — charging module	TP4056 USB-C charging module	TP4056 with protection circuit (DW01A + FS8205)	1	0.80–2	Buy the version with protection IC (over-discharge, over-current). USB-C preferred.	No
+Power — battery (recommended)	2× AAA holder + cells	2× AAA alkaline or lithium (Energizer L92) + 2-cell THT holder	1	1–4	RECOMMENDED. 1.8–3.2 V feeds the 328P directly, no regulator — removes the ~75 µA LDO term, ~4 µA sleep floor, "years" of life. Fully through-hole. Validate IR drop + diode readout at ~1.8 V first — see 07 §6.	YES — validate at 1.8 V
+Power — battery (alt.)	Li-Po battery	3.7 V, 400–1000 mAh, single cell	1	5–12	Alternative if 2×AAA readout fails at low V, or USB-C recharge wanted. Needs TP4056 below. Size after enclosure.	Only if 2×AAA fails
+Power — charging module (alt.)	TP4056 USB-C charging module	TP4056 with protection circuit (DW01A + FS8205)	1	0.80–2	Only with the Li-Po path. Buy the protection-IC version (over-discharge, over-current). USB-C preferred.	Only with Li-Po
 Resistors — pull-down	Code-line pull-downs	220 kΩ–1 MΩ through-hole 1/4W	12	0.05 each	Weak pull-downs on the switch code lines (keeps sleep leakage to a few µA; high-Z GPIO tolerate weak values). ~9 needed + spares. No gated rail / LDO required.	Bench-pick value
 Power — low battery indicator	LED + voltage divider resistors	Simple LED + 2× resistor divider	1 set	0.20	Nice-to-have. Monitor battery via MCU ADC, drive LED when below threshold.	Nice to have
 Prototyping	Breadboard	400-point or 830-point half/full size	1	2–5	For initial wiring before PCB or perfboard.	No

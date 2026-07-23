@@ -19,7 +19,7 @@ Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `D
 - **Controls:** 3 rotary switches (all 1-pole), ALPHA SR16 + Send button (+ optional Swing toggle)
 - **MCU:** Arduino Pro Mini 3.3 V (ATmega328P), ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 give lower µA-class sleep but aren't needed yet; see [03_microcontroller_choice.md](docs/03_microcontroller_choice.md))
 - **IR:** TSAL6200 940 nm LED (×1 or ×3 fan) + S9013 NPN transistor driver, 38 kHz carrier via the 328P Timer2 (OC2B, pin D3), Daikin ARC466A33 frame ported and validated against the real unit
-- **Power:** Li-Po 3.7 V, TP4056 USB-C charging module, MCU sleeps between transmissions (6-month → multi-year battery target — bench-validation pending)
+- **Power:** recommended path is **2× AAA driving the 328P directly** (1.8–3.2 V, no regulator → ~4 µA sleep floor, fully through-hole); Li-Po + TP4056 USB-C is the fallback if the ~1.8 V IR/readout checks fail. MCU sleeps between transmissions (6-month → multi-year target — bench-validation pending; see [07_battery_and_power.md](docs/07_battery_and_power.md))
 
 ## Status & roadmap
 
@@ -62,7 +62,7 @@ Lessons learned:
 | [03_microcontroller_choice.md](docs/03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
 | [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Rotary switch selection; input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence |
 | [06_IR_LED_wiring.md](docs/06_IR_LED_wiring.md)                         | IR emitter: TSAL6200 + S9013 driver, single/3× wiring, bulk cap, wide-angle vs range, mounting strategies        |
-| [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: Li-Po + TP4056, sleep-current budget, Pro Mini battery mods, charging, AAA/alkaline alternative |
+| [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: recommended 2×AAA direct-drive (no regulator), Li-Po + TP4056 fallback, sleep-current budget, Pro Mini battery mods |
 | [10_software_architecture.md](docs/10_software_architecture.md)         | How the knob-remote sketch is structured: switch reading, state mapping, Daikin frame builder, IR transmit, Linux mock |
 | [11_serial_remote_app.md](docs/11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
 
