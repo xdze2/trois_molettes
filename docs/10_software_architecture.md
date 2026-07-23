@@ -1,6 +1,6 @@
 # Software Architecture
 
-How the firmware is structured today. For the hardware context see [05_electronics_circuit.md](05_electronics_circuit.md); for the IR protocol see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md); for the MCU choice see [03_microcontroller_choice.md](03_microcontroller_choice.md).
+How the firmware is structured today. For the hardware context see [05_electronics_circuit.md](05_electronics_circuit.md); for the IR protocol see [Annex A1](A1_IR_protocol_and_mapping.md); for the MCU choice see [03_microcontroller_choice.md](03_microcontroller_choice.md).
 
 ---
 
@@ -71,7 +71,7 @@ The byte layout and checksum algorithm are taken directly from the `IRDaikinESP`
 
 ## 5. IR transmit
 
-Timer2 drives a 38 kHz carrier on OC2B (pin D3): `ir_mark()`/`ir_space()` toggle the timer's compare-output enable to key the carrier on and off for the pulse-distance timing the protocol needs (`DAIKIN_BIT_MARK`, `DAIKIN_ONE_SPACE`, etc. — see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md)). `send_daikin()` clocks out the 3 sections of the 35-byte frame with the required header and inter-section gaps.
+Timer2 drives a 38 kHz carrier on OC2B (pin D3): `ir_mark()`/`ir_space()` toggle the timer's compare-output enable to key the carrier on and off for the pulse-distance timing the protocol needs (`DAIKIN_BIT_MARK`, `DAIKIN_ONE_SPACE`, etc. — see [Annex A1](A1_IR_protocol_and_mapping.md)). `send_daikin()` clocks out the 3 sections of the 35-byte frame with the required header and inter-section gaps.
 
 ---
 

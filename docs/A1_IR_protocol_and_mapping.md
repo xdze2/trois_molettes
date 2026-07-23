@@ -1,4 +1,9 @@
-# IR Protocol & Interface Mapping
+# Annex A1 — IR Protocol & Interface Mapping
+
+> **Technical annex / reference.** Low-level Daikin frame layout, library methods,
+> and constants. Not part of the numbered reading sequence — consult it as needed.
+> The constraints this frame imposes on the design (memory, timer, carrier) are
+> summarised in [00_specifications.md §8](00_specifications.md#8-non-functional-requirements).
 
 ## 1. Protocol Identification
 

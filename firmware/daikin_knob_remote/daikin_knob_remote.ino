@@ -5,7 +5,7 @@
 // change of any knob (no Send button — the switch position is the state,
 // per 11_serial_remote_app.md's stateless-device model). A Resend button
 // re-transmits the current state on demand without requiring a knob change
-// (per 00_specifications.md §"resend action" / 01_IR_protocol_and_mapping.md
+// (per 00_specifications.md §"resend action" / A1_IR_protocol_and_mapping.md
 // RESEND). Logs every reading and every transmit to Serial.
 //
 // Pure polling, no sleep, no IRQ — matches the bring-up sketches this is
@@ -354,7 +354,7 @@ void loop() {
     } else if (resendButtonPressed()) {
         // Resend: retransmit current knob state unchanged, without requiring
         // a knob move (00_specifications.md "resend action" /
-        // 01_IR_protocol_and_mapping.md RESEND).
+        // A1_IR_protocol_and_mapping.md RESEND).
         Serial.println("CHANGE (resend)");
         sendCurrentState(raw[SW_FAN], raw[SW_MODE], raw[SW_TEMP]);
     }

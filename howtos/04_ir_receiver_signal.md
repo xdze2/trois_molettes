@@ -1,7 +1,7 @@
 # IR Receiver Signal — TSOP38238 + Oscilloscope
 
 Bench notes from observing the Daikin remote IR signal with a TSOP38238 demodulator and oscilloscope.
-See [06_IR_LED_wiring.md](../docs/06_IR_LED_wiring.md) for the emitter design, and [01_IR_protocol_and_mapping.md](../docs/01_IR_protocol_and_mapping.md) for the full protocol reference.
+See [06_IR_LED_wiring.md](../docs/06_IR_LED_wiring.md) for the emitter design, and [Annex A1 — IR protocol & mapping](../docs/A1_IR_protocol_and_mapping.md) for the full protocol reference.
 
 ## Goal
 

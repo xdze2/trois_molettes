@@ -14,7 +14,7 @@ convenience, not a gate.
 | **13-pin both-edge wake** | **hard** | The diode-encoding readout ([05 §3.5](05_electronics_circuit.md#35-the-chosen-scheme--per-switch-diode-encoding)) needs ~13 input lines (9 rotary code + 4 buttons) each able to wake the MCU on either edge, from its deepest viable sleep mode. Chips that restrict deep-sleep wake to a few dedicated pins fail here. |
 | **Dev board + perfboard only** | **hard** | No PCB routing or fabrication. Build on a **hand-solderable dev board / module** on perfboard. This rules out bare-die solutions (bare RP2040 + LDO, bare WROOM) — so the board, not the die, must hit the sleep target. |
 | Power supply | hard | Direct from single Li-Po cell (3.0–4.2 V), via the board's onboard regulator or VBAT. |
-| IR library | **soft** | Off-the-shelf Daikin support (IRremoteESP8266) is an "easy-life" bonus, **not** required. The Daikin frame is a documented byte array + checksum + 38 kHz carrier ([01](01_IR_protocol_and_mapping.md)); porting/reimplementing the transmit is accepted in-scope firmware work. The MCU is **not** constrained to library-supported chips. |
+| IR library | **soft** | Off-the-shelf Daikin support (IRremoteESP8266) is an "easy-life" bonus, **not** required. The Daikin frame is a documented byte array + checksum + 38 kHz carrier ([Annex A1](A1_IR_protocol_and_mapping.md)); porting/reimplementing the transmit is accepted in-scope firmware work. The MCU is **not** constrained to library-supported chips. |
 | Cost | soft | Within the €35 BOM; clone/budget boards fine for prototype. |
 | Form factor | soft | Small is nice; all realistic candidates fit the 80×100 mm panel. |
 | Dev friction | soft | No extra programmer required (USB or onboard debugger preferred). |
@@ -55,7 +55,7 @@ Notes:
 
 ## 3. IR Library Situation — convenience, not a constraint
 
-The Daikin protocol is well-documented (3 frames, 35 bytes, fixed headers, one checksum byte, 38 kHz pulse-distance — see [01](01_IR_protocol_and_mapping.md) and the blafois reverse-engineering). It is **transmit-only** here: build a fixed byte array, compute the checksum, clock it out modulated at 38 kHz. That is a few hundred lines, within the "small, auditable firmware" goal. So an off-the-shelf library is an *accelerator*, not a gate — and the MCU is chosen on power and wake behaviour first, library convenience last.
+The Daikin protocol is well-documented (3 frames, 35 bytes, fixed headers, one checksum byte, 38 kHz pulse-distance — see [Annex A1](A1_IR_protocol_and_mapping.md) and the blafois reverse-engineering). It is **transmit-only** here: build a fixed byte array, compute the checksum, clock it out modulated at 38 kHz. That is a few hundred lines, within the "small, auditable firmware" goal. So an off-the-shelf library is an *accelerator*, not a gate — and the MCU is chosen on power and wake behaviour first, library convenience last.
 
 | Library | Targets | Daikin support | Role here |
 |---|---|---|---|

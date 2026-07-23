@@ -56,9 +56,8 @@ Lessons learned:
 
 | File                                                                    | Description                                                                                                      |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| [00_specifications.md](docs/00_specifications.md)                       | Full project requirements: controls, feedback, power, enclosure                                                  |
-| [01_technical_design_overview.md](docs/01_technical_design_overview.md) | Design summary: choices, trade-offs, and the open decisions (readout/wake, sleep current)                        |
-| [01_IR_protocol_and_mapping.md](docs/01_IR_protocol_and_mapping.md)     | Daikin IR protocol (frame structure, parameters, library usage, control mapping)                                 |
+| [00_specifications.md](docs/00_specifications.md)                       | Full project requirements: controls, feedback, power, enclosure. Start here. |
+| [A1_IR_protocol_and_mapping.md](docs/A1_IR_protocol_and_mapping.md)     | *Annex.* Daikin IR protocol (frame structure, parameters, library usage, control mapping)                         |
 | [02_BOM_prototype.csv](docs/02_BOM_prototype.csv)                       | Bill of materials with prices and sourcing notes                                                                 |
 | [03_microcontroller_choice.md](docs/03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
 | [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Rotary switch selection; input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence |

@@ -125,6 +125,18 @@ Rotary switches take noticeable torque to turn, so the device must be held with 
 - Low complexity — the firmware should be small and auditable.
 - **BOM cost: < €35 total** (excluding enclosure and tools). This is a hard constraint on component selection.
 
+### 8.1 Constraints imposed by the Daikin IR frame
+
+The IR frame is not just a firmware detail — its shape sets hard floors on the
+hardware. These consequences drive choices justified in the dedicated docs;
+the frame reference itself is in [Annex A1](A1_IR_protocol_and_mapping.md).
+
+| The frame requires… | …which constrains |
+|---|---|
+| 35-byte, 3-frame fixed structure (byte array + checksum) | flash/RAM floor — trivial for any candidate MCU, so **not** a differentiator (see [03_microcontroller_choice.md](03_microcontroller_choice.md)) |
+| **38 kHz** carrier, pulse-distance timing | a hardware timer for the carrier (Timer2 on the 328P — see [10_software_architecture.md](10_software_architecture.md)) |
+| Transmit-only, hand-portable (no ESP-only library needed) | keeps firmware "small and auditable" and frees the MCU from library-supported chips — so it is chosen on **power/wake first** |
+
 
 ## 9. Nice to have (out of scope for v1)
 
