@@ -5,6 +5,12 @@ Pro Mini at 3.3 V. The repo is mostly Markdown design docs (`docs/00_*`–`11_*`
 plus hardware bring-up bench logs (`howtos/`), with generated circuit schematics.
 Only `README.md` and this file live at the repo root.
 
+## Git workflow
+
+Single-developer, DIY-style project — **commit directly to `main`**. Do not create
+feature/work branches or open PRs unless explicitly asked. Only commit (and push)
+when asked; the user usually pushes themselves.
+
 ## Schematics workflow
 
 Schematics are **generated from Python scripts** in `schematics/` using
