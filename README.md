@@ -16,7 +16,7 @@ Target AC unit: Daikin FTXM20N2V1B · Original remote: ARC466A33 · Protocol: `D
 
 ## Hardware summary
 
-- **Controls:** 3 rotary switches (all 1-pole), ALPHA SR16 + Send button (+ optional Swing toggle)
+- **Controls:** 3 rotary selectors + Send button (+ optional Swing toggle). **v1** (bench): plain 1-pole ALPHA SR16 / RS1010 read via a diode matrix. **v2** (planned): Bourns PAC18R absolute encoders — Gray-coded, no diodes, 2.5 mm-pitch through-hole. See [05_electronics_circuit.md](docs/05_electronics_circuit.md)
 - **MCU:** Arduino Pro Mini 3.3 V (ATmega328P), ported and tested. Sleeps in `SLEEP_MODE_PWR_DOWN`, woken by PCINT both-edge on every code/button line. Sleep floor dominated by the Pro Mini LDO quiescent (~75 µA) — bench-validation pending. (nRF52840 / STM32L4 give lower µA-class sleep but aren't needed yet; see [03_microcontroller_choice.md](docs/03_microcontroller_choice.md))
 - **IR:** TSAL6200 940 nm LED (×1 or ×3 fan) + S9013 NPN transistor driver, 38 kHz carrier via the 328P Timer2 (OC2B, pin D3), Daikin ARC466A33 frame ported and validated against the real unit
 - **Power:** recommended path is **2× AAA driving the 328P directly** (1.8–3.2 V, no regulator → ~4 µA sleep floor, fully through-hole); Li-Po + TP4056 USB-C is the fallback if the ~1.8 V IR/readout checks fail. MCU sleeps between transmissions (6-month → multi-year target — bench-validation pending; see [07_battery_and_power.md](docs/07_battery_and_power.md))
@@ -38,19 +38,23 @@ Lessons learned:
 
 - Rotary switch mounting and wiring needs rework — doesn't scale to three knobs in an enclosure.
 - A nice box without a PCB is hard — perfboard wiring mess and component size (the
-  readout diodes especially) eat panel space fast.
+  readout diodes especially) eat panel space fast. (v2 fix under evaluation: a coded
+  absolute encoder deletes the diode array — see [05 §1.1](docs/05_electronics_circuit.md).)
 - A Li-Po battery is likely overkill; measure actual sleep/active current before picking a chemistry.
 - 3× IR LEDs work electrically but aren't enclosure/design-friendly; worth revisiting
   against a single wider-angle LED.
 - Open question: is a dedicated swing switch worth the panel space, or should swing
   live on an existing control?
 
-### Next: PCB design
+### Next: v2 — switches, board & enclosure
 
-- Rotary switch choice — PCB-mount, front-facing
-- IR LED choice
+- Rotary selector — leaning to the **Bourns PAC18R absolute encoder** (Gray-coded,
+  2.5 mm-pitch through-hole, real knob shaft). Deletes the diode array and the readout
+  transient problem; keeps perfboard viable. Open: confirm Mouser price vs ≤ €5/unit.
+- PCB vs. perfboard — only need a custom PCB (KiCad) if a part is off the 2.54 mm grid;
+  the PAC18R is on-grid, so perfboard may still do.
+- IR LED choice — single wide-angle vs 3× fan
 - Battery choice — AA with regulator?
-- Learn KiCad
 
 ## Files
 
@@ -60,7 +64,7 @@ Lessons learned:
 | [A1_IR_protocol_and_mapping.md](docs/A1_IR_protocol_and_mapping.md)     | *Annex.* Daikin IR protocol (frame structure, parameters, library usage, control mapping)                         |
 | [02_BOM_prototype.csv](docs/02_BOM_prototype.csv)                       | Bill of materials with prices and sourcing notes                                                                 |
 | [03_microcontroller_choice.md](docs/03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
-| [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Rotary switch selection; input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence |
+| [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Rotary selector choice (v1 switch + diode matrix vs. v2 PAC18R absolute encoder); input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence |
 | [06_IR_LED_wiring.md](docs/06_IR_LED_wiring.md)                         | IR emitter: TSAL6200 + S9013 driver, single/3× wiring, bulk cap, wide-angle vs range, mounting strategies        |
 | [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: recommended 2×AAA direct-drive (no regulator), Li-Po + TP4056 fallback, sleep-current budget, Pro Mini battery mods |
 | [10_software_architecture.md](docs/10_software_architecture.md)         | How the knob-remote sketch is structured: switch reading, state mapping, Daikin frame builder, IR transmit, Linux mock |

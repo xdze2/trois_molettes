@@ -16,11 +16,21 @@ feasibility question; it's all **integration, sourcing, and finish**.
 - Battery: AA with regulator? Measure sleep/active current before committing.
   → [07](07_battery_and_power.md)
 
-## v2 — PCB & enclosure
+## v2 — switches, board & enclosure
 
-- PCB with directly-mounted switches — learn KiCad. → [05](05_electronics_circuit.md)
+Sourcing shifts from AliExpress (v1) to Mouser. The pivotal decision is the rotary
+selector.
+
+- **Rotary selector — coded absolute encoder vs. plain switch + diodes.** Leading
+  candidate is the **Bourns PAC18R absolute encoder** (`PAC18R1-41D19F`): 4-bit Gray
+  code, 8 positions, 2.5 mm-pitch THT, real flatted knob shaft, haptic detents. It
+  deletes the 29-diode readout array and, being Gray-coded, **retires the transient-
+  rejection question entirely** (no strobe/debounce fork). Open: confirm live Mouser
+  price vs the ≤ €5/unit target; if it overshoots, fall back to the v1 plain-switch +
+  diode matrix. → [05 §1.1](05_electronics_circuit.md)
+- **PCB vs. perfboard.** A custom PCB is only *forced* if a part is off the 2.54 mm
+  grid. Because the PAC18R is on-grid *and* removes the diode array (the main thing
+  bloating the perfboard), v2 may stay on **perfboard** — no KiCad/fab order. Learn
+  KiCad only if the layout still demands it. → [05 §1](05_electronics_circuit.md)
 - IR LED: single wide-angle LED instead of the 3× fan. → [06](06_IR_LED_wiring.md)
-- Readout transient rejection: confirm switch contact style, then choose strobe/valid
-  line (A) vs debounce timing (C). Gray code helps only the shorting case; 8 positions
-  on 3 bits leaves no spare "invalid" codeword. → [05 §1, §3](05_electronics_circuit.md)
 - Wall-mountable enclosure.
