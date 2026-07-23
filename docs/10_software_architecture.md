@@ -1,220 +1,93 @@
 # Software Architecture
 
-How the firmware is structured, how it maps to the hardware, and how the Linux mock fits in. For the hardware context see [05_electronics_circuit.md](05_electronics_circuit.md); for the IR protocol see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md); for the MCU choice see [03_microcontroller_choice.md](03_microcontroller_choice.md).
+How the firmware is structured today. For the hardware context see [05_electronics_circuit.md](05_electronics_circuit.md); for the IR protocol see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md); for the MCU choice see [03_microcontroller_choice.md](03_microcontroller_choice.md).
 
 ---
 
 ## 1. Overall structure
 
-The firmware is a single-pass event loop with no RTOS. The MCU sleeps almost all the time; a GPIO edge (knob moved, button pressed) wakes it, the ISR records which line changed, and the main loop reads all inputs, builds the Daikin frame, and sends it.
+The firmware ([firmware/daikin_knob_remote/daikin_knob_remote.ino](../firmware/daikin_knob_remote/daikin_knob_remote.ino)) is a flat Arduino sketch, plain polling loop, no sleep and no interrupts yet:
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                     main loop                        │
-│                                                      │
-│  sleep  ──► wake (GPIO edge) ──► read_inputs()       │
-│                                      │               │
-│                               build_frame()          │
-│                                      │               │
-│                               send_ir()              │
-│                                      │               │
-│                               flash_led()            │
-│                                      │               │
-│                                   sleep              │
-└──────────────────────────────────────────────────────┘
+setup()
+  configure switch/button/LED pins, start Timer2 (38 kHz carrier)
+
+loop()
+  read + debounce Fan, Mode, Temp switches
+  if any changed        → build frame, transmit, log to Serial
+  else if Resend pressed → re-transmit current state
 ```
 
-Every wake cycle is identical regardless of which input triggered it — the full state is always re-read from hardware and re-sent.
+Every transmit re-reads and re-derives the full AC state from the knobs — there's no separate "dirty" tracking beyond noticing a switch's decoded position changed since last loop. Sleep + PCINT wake (deep sleep between reads) is a deliberately separate, later step — see [howto 09](../howtos/09_rotary_switches_wake_test.md).
 
 ---
 
-## 2. Layers
+## 2. Switch reading
 
-The code is split into three layers so the logic can be tested on Linux independently of the hardware.
+Fan, Mode and Temp are diode-encoded rotary switches, each read as a 3-bit code across 3 GPIO pins (see [05_electronics_circuit.md](05_electronics_circuit.md) for wiring). `readDebouncedCode()` polls a switch's pins every `SETTLE_MS` and requires `SETTLE_STABLE_READS` consecutive identical readings before accepting a value — this rides out the inter-detent glitching described in [howto 03](../howtos/03_rs1010_readout.md).
 
-```
-┌─────────────────────────────────┐
-│           app layer             │  main.cpp
-│  read inputs → AC state → send  │
-├─────────────────────────────────┤
-│          daikin layer           │  daikin_frame.h / .cpp
-│  AC state → 35-byte frame       │
-│  checksum, constants            │
-├────────────────┬────────────────┤
-│   HAL (AVR)    │   HAL (Linux)  │  hal_avr.cpp / hal_linux.cpp
-│  Timer2 38kHz  │  IRsendTest    │
-│  GPIO read     │  stdout dump   │
-│  deep sleep    │  (no-op)       │
-└────────────────┴────────────────┘
-```
+Raw codes are remapped to logical positions per-switch (`rawToPos` table) where the diode wiring doesn't match the logical order — e.g. the Fan switch's encoding is shifted by one position (see [howto 09](../howtos/09_rotary_switches_wake_test.md)).
 
-The **daikin layer** is pure C++ with no hardware dependencies — it builds and checksums the 35-byte frame. It compiles and runs identically on both targets.
-
-The **HAL** is the only part that differs between targets. It provides three functions:
-
-```cpp
-void     hal_send_ir(const uint8_t* frame, uint16_t len);
-uint16_t hal_read_inputs(void);   // returns a bitmask of raw GPIO lines
-void     hal_sleep(void);
-```
+The Resend button is a separate, simpler edge-triggered debounce (`resendButtonPressed()`) — a single hold-off delay rather than a settle loop, since it's a momentary press, not a detented position.
 
 ---
 
-## 3. Input reading — GPIO → AC state (TBD)
+## 3. Position → Daikin state
 
-The exact GPIO assignment (which pins carry which rotary code bits) is not yet decided — it depends on the final PCB layout and which MCU is chosen. The mapping lives in one place:
+Each knob position maps to a field of `ACState` (defined in `daikin_frame.h`):
 
-```cpp
-// inputs.h  — edit this when the pin assignment is finalised
-namespace inputs {
-    // Fan/Power switch: N-bit Gray or binary code on these GPIO indices
-    constexpr uint8_t FAN_BITS[]  = { /* TBD */ };
-    // Mode switch
-    constexpr uint8_t MODE_BITS[] = { /* TBD */ };
-    // Temperature switch
-    constexpr uint8_t TEMP_BITS[] = { /* TBD */ };
-    // Buttons
-    constexpr uint8_t BTN_POWERFUL = /* TBD */;
-    constexpr uint8_t BTN_ECONO    = /* TBD */;
-    constexpr uint8_t BTN_SWING    = /* TBD */;
-    constexpr uint8_t BTN_RESEND   = /* TBD */;
-}
-```
+- `applyFanPos()` — position 0 is Off; 1–5 are fan speeds (wire value = position + 2); 6 is Quiet; 7 is Auto.
+- `applyModePos()` — Fan / Cool / Heat / Dry / Auto.
+- `applyTempPos()` — position → °C, with a mode-dependent base (14 °C for Heat, 20 °C otherwise) in 2 °C steps, per [00_specifications.md §4.3](00_specifications.md).
 
-`hal_read_inputs()` returns a raw bitmask of all GPIO lines. A decode function in the app layer extracts the rotary positions from that bitmask using the constants above, then maps them to AC state:
-
-```
-raw GPIO bitmask
-      │
-      ▼
-decode_inputs()   ← uses inputs.h constants
-      │
-      ▼
-struct ACState { power, mode, temp, fan, powerful, econo, swing }
-      │
-      ▼
-build_frame()     ← daikin layer
-      │
-      ▼
-uint8_t frame[35]
-```
-
-The optional Swing toggle is the only internal software state — it has no absolute physical position to read back, unlike the knobs. It is stored in a small struct that persists across sleep cycles (the ATmega328P retains SRAM through `SLEEP_MODE_PWR_DOWN`).
+Swing, Powerful and Econo aren't set by any knob/button yet — `ACState` is zero-initialized, so all three are always off.
 
 ---
 
 ## 4. Daikin frame layer
 
-Isolated in `daikin_frame.h / daikin_frame.cpp`. No Arduino, no library dependency.
+Isolated in [firmware/daikin_frame.h / .cpp](../firmware/daikin_frame.h) — pure C++, no Arduino or library dependency, shared (via symlink) by every sketch that needs it. See [firmware/](../firmware/) for the file layout.
 
 ```cpp
 struct ACState {
     bool    power;
-    uint8_t mode;      // kDaikinCool, kDaikinHeat, kDaikinFan, kDaikinDry
-    uint8_t temp;      // 16–26
-    uint8_t fan;       // kDaikinFanMin..Max, kDaikinFanAuto
+    uint8_t mode;      // DAIKIN_MODE_*
+    uint8_t temp;      // 16–26 °C
+    uint8_t fan;       // DAIKIN_FAN_*
+    bool    swing_v;
     bool    powerful;
     bool    econo;
-    bool    swing_v;
 };
 
-// Fills frame[35] and apputes the three checksums.
-void daikin_build_frame(const ACState& state, uint8_t frame[35]);
+// Fills frame[35] and computes the three checksums.
+void daikin_build_frame(const ACState *state, uint8_t frame[35]);
 ```
 
-The byte layout and checksum algorithm are taken directly from the `IRDaikinESP` implementation in IRremoteESP8266 — it is the reference. The Linux mock is used to verify that `daikin_build_frame()` produces identical bytes.
+The byte layout and checksum algorithm are taken directly from the `IRDaikinESP` implementation in IRremoteESP8266 — it is the reference. [ir_mock/](../ir_mock/) cross-checks `daikin_build_frame()`'s output against a real captured frame from the ARC466A33 remote (see [howto 07](../howtos/07_verify_frame_against_capture.md)) — the library's own default state isn't trusted as ground truth, since that's what broke initially.
 
 ---
 
-## 5. HAL — AVR implementation
+## 5. IR transmit
 
-On the ATmega328P:
-
-**`hal_send_ir(frame, len)`**
-
-Calls `sendDaikin()` — the transmit loop that alternates `mark()` / `space()` calls:
-- `mark(us)`: enable Timer2 CTC toggle on OC2B (pin D3) for `us` microseconds → 38 kHz burst
-- `space(us)`: disable toggle, pin low, `_delay_us(us)`
-
-Timer2 setup: prescaler /1, OCR2A = 104 → 38.1 kHz (see [10 §IR modulation](#) and [03_microcontroller_choice.md](03_microcontroller_choice.md)).
-
-**`hal_read_inputs()`**
-
-Reads all relevant GPIO pins and packs them into a `uint16_t` bitmask. The bit positions match the indices in `inputs.h`.
-
-**`hal_sleep()`**
-
-Puts the MCU into its deepest viable sleep with all relevant GPIO lines armed for both-edge wake. On AVR: power-down mode + PCINT on all input pins, BOD disabled.
+Timer2 drives a 38 kHz carrier on OC2B (pin D3): `ir_mark()`/`ir_space()` toggle the timer's compare-output enable to key the carrier on and off for the pulse-distance timing the protocol needs (`DAIKIN_BIT_MARK`, `DAIKIN_ONE_SPACE`, etc. — see [01_IR_protocol_and_mapping.md](01_IR_protocol_and_mapping.md)). `send_daikin()` clocks out the 3 sections of the 35-byte frame with the required header and inter-section gaps.
 
 ---
 
-## 6. HAL — Linux implementation
+## 6. Linux mock (`ir_mock/`)
 
-The Linux HAL lives in `ir_mock/` and is used for two purposes:
-
-1. **Verify the frame builder** — call `daikin_build_frame()` and compare the 35 bytes against `IRDaikinESP::getRaw()` from the full library. Any mismatch is a bug in the port.
-2. **Inspect pulse timings** — feed the frame to `IRsendTest::sendDaikin()` and print the pulse/space sequence.
-
-```cpp
-// hal_linux.cpp
-void hal_send_ir(const uint8_t* frame, uint16_t len) {
-    IRsendTest irsend(0);
-    irsend.begin();
-    irsend.sendDaikin(frame, len);
-    std::cout << irsend.outputStr() << "\n";
-}
-
-uint16_t hal_read_inputs(void) {
-    // Inputs are injected via argv or stdin for automated testing
-    return parse_test_inputs();
-}
-
-void hal_sleep(void) { /* no-op */ }
-```
-
-The test workflow:
+A one-shot comparison test, not a general CLI tool: it builds a frame with `daikin_build_frame()` for a fixed test case and prints it alongside the equivalent `IRDaikinESP` reference frame and the real captured ARC466A33 frame, so a byte-level mismatch is visible directly.
 
 ```
 $ make -C ir_mock
-$ ./ir_mock/daikin_mock --power on --mode cool --temp 22 --fan auto
-# prints frame bytes + pulse timings
-# compare bytes against IRDaikinESP reference
+$ ./ir_mock/daikin_mock
 ```
 
 ---
 
-## 7. File layout
-
-```
-ir_mock/
-  IRremoteESP8266/     ← git submodule (reference + Linux test HAL)
-  main.cpp             ← Linux entry point
-  hal_linux.cpp        ← Linux HAL
-  Makefile
-
-firmware/
-  daikin_frame.h
-  daikin_frame.cpp             ← portable Daikin frame builder (canonical copy)
-  daikin_knob_remote/          ← the deployable firmware — Arduino sketch
-    daikin_knob_remote.ino
-    daikin_frame.{h,cpp}       ← symlinks to ../daikin_frame.{h,cpp}
-
-sketches/
-  daikin_serial/, daikin_fan_toggle/, ...   ← dev/bring-up/test sketches;
-    daikin_frame.{h,cpp} symlinked to ../../firmware/daikin_frame.{h,cpp}
-    where the sketch needs the frame builder
-```
-
-`firmware/` holds the real, deployable firmware: the shared `daikin_frame.{h,cpp}` frame builder plus the `daikin_knob_remote` sketch that runs on the bench hardware today. The bare-AVR HAL (`hal_avr.cpp`, a standalone `main.cpp`) described in earlier drafts of this doc was superseded by building directly on the Arduino framework — `daikin_knob_remote.ino` plays that role instead. `sketches/` holds everything else: earlier milestones and one-off dev/test sketches used during bring-up (see the [bench logs](../howtos/)).
-
----
-
-## 8. Open items
+## 7. Open items
 
 | Item | Status |
 |---|---|
-| GPIO pin assignment (`inputs.h`) | TBD — depends on final MCU and board layout |
-| Rotary code scheme (binary vs Gray) | TBD — follows from circuit §3 decision |
-| `daikin_build_frame()` port and verification against library | not started |
-| AVR HAL (`hal_avr.cpp`) — Timer2 + PCINT | not started |
-| CLI flags for `ir_mock` (--power, --mode, --temp…) | not started |
+| Sleep + PCINT wake in `daikin_knob_remote` | proven separately in [howto 09](../howtos/09_rotary_switches_wake_test.md); not yet merged into the main sketch (currently plain polling) |
+| Swing switch | no hardware wired; `swing_v` hardcoded false |
+| `ir_mock` CLI flags (`--power`, `--mode`, `--temp`…) | not started — currently a fixed test case |
