@@ -71,7 +71,9 @@
 
 // --- Fan knob (SR16, 8 positions), indexed by raw gpio code ---------------
 // power=false marks the Off detent (fan value is then don't-care).
-// Row order set from the bench sweep (howto 09): leftmost detent reads raw=0.
+// Row order set from the bench sweep (howto 09): the panel's leftmost detent
+// (Off) reads raw=1 and its rightmost (Auto) reads raw=0 — a wiring error, but
+// absorbed here so the rows match the panel by raw code. See per-row notes.
 struct FanPos { const char *label; bool power; uint8_t fan; };
 // IMPORTANT: rows are indexed by raw code — FAN_POS[raw] must be raw's meaning,
 // so the row order here MUST stay sorted by the /* raw N */ tag (0,1,2,...).
@@ -88,8 +90,9 @@ const FanPos FAN_POS[8] = {
 };
 
 // --- Mode knob (RS1010, 5 positions), indexed by raw gpio code ------------
-// Bench-validated left->right per howto 09 (Fan/Cool/Heat/Dry/Auto = raw 0..4);
-// re-confirm against the panel now that the log prints raw=.
+// Bench-validated: the knob reads reversed vs. the old howto 09 order, so by
+// raw code raw 0..4 = Auto/Dry/Heat/Cool/Fan (rows below). Re-confirm against
+// the panel with the raw= reading on the CHANGE line if the wiring changes.
 struct ModePos { const char *label; uint8_t mode; };
 const ModePos MODE_POS[5] = {
     { "Auto", DAIKIN_MODE_AUTO },
@@ -262,14 +265,14 @@ void printKnobChange(uint8_t s, uint8_t raw) {
 
 // Fan knob position (0..7, 00_specifications.md 4.1) -> ACState fields.
 void applyFanPos(uint8_t pos, ACState *st) {
-    if (pos >= N_FAN_POS) pos = 0;  // out-of-range -> Off, fail safe
+    if (pos >= N_FAN_POS) pos = 1;  // out-of-range -> Off (index 1), fail safe
     st->power = FAN_POS[pos].power;
     st->fan   = FAN_POS[pos].fan;
 }
 
 // Mode knob position (0..4, 00_specifications.md 4.2) -> ACState.mode.
 void applyModePos(uint8_t pos, ACState *st) {
-    if (pos >= N_MODE_POS) pos = N_MODE_POS - 1;  // out-of-range -> Auto
+    if (pos >= N_MODE_POS) pos = 0;  // out-of-range -> Auto (index 0), fail safe
     st->mode = MODE_POS[pos].mode;
 }
 
