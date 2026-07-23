@@ -27,10 +27,10 @@ selector.
   deletes the 29-diode readout array and, being Gray-coded, **retires the transient-
   rejection question entirely** (no strobe/debounce fork). Open: confirm live Mouser
   price vs the ≤ €5/unit target; if it overshoots, fall back to the v1 plain-switch +
-  diode matrix. → [05 §1.1](05_electronics_circuit.md)
+  diode matrix. → [05_electronics_circuit_v2.md](05_electronics_circuit_v2.md)
 - **PCB vs. perfboard.** A custom PCB is only *forced* if a part is off the 2.54 mm
   grid. Because the PAC18R is on-grid *and* removes the diode array (the main thing
   bloating the perfboard), v2 may stay on **perfboard** — no KiCad/fab order. Learn
-  KiCad only if the layout still demands it. → [05 §1](05_electronics_circuit.md)
+  KiCad only if the layout still demands it. → [05_electronics_circuit_v2.md](05_electronics_circuit_v2.md)
 - IR LED: single wide-angle LED instead of the 3× fan. → [06](06_IR_LED_wiring.md)
 - Wall-mountable enclosure.

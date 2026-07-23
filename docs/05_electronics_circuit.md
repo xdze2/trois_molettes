@@ -1,8 +1,11 @@
 # Electronics Circuit — Input Wiring
 
 Rotary switch selection and how the switches and buttons are wired to the
-ATmega328P. For power and battery see [07_battery_and_power.md](07_battery_and_power.md);
-for the IR transmit driver see [06_IR_LED_wiring.md](06_IR_LED_wiring.md).
+ATmega328P. This is the **built v1 circuit** — plain 1-pole switches read through a
+diode matrix, validated on the bench. For the planned v2 evolution (coded absolute
+encoders, no diodes) see [05_electronics_circuit_v2.md](05_electronics_circuit_v2.md).
+For power and battery see [07_battery_and_power.md](07_battery_and_power.md); for the
+IR transmit driver see [06_IR_LED_wiring.md](06_IR_LED_wiring.md).
 
 ---
 
@@ -18,19 +21,16 @@ Three rotary selectors needed:
 
 Each selector must give an **absolute position** — the knob *is* the state (see
 [00_specifications.md](00_specifications.md)); there is no stored count to lose on
-power-down, so incremental/quadrature encoders are excluded outright. That leaves two
-ways to get an absolute code, and the choice splits along the **v1 → v2** sourcing
-change:
+power-down, so incremental/quadrature encoders are excluded outright.
 
-- **v1 (AliExpress) — plain 1-pole switch + diode matrix.** Cheap bare rotary
-  switches (Alpha SR16, RS1010) have no coded output; a per-switch diode array
-  (§3) turns the single wiper contact into a 3-bit binary code. Validated on the
-  bench, ~€2/switch. **Cost:** the hand-soldered diode array (29 diodes) eats a lot
-  of perfboard.
-- **v2 (Mouser) — coded absolute encoder, no diodes.** A one-piece absolute encoder
-  outputs the position code directly. Deletes all 29 diodes and the entire
-  transient/contact-style problem below. **Cost:** more per unit, +1 GPIO per
-  switch. See §1.1.
+**v1 (AliExpress, built) — plain 1-pole switch + diode matrix.** Cheap bare rotary
+switches (Alpha SR16, RS1010) have no coded output; a per-switch diode array (§3)
+turns the single wiper contact into a 3-bit binary code. Validated on the bench,
+~€2/switch. **Cost:** the hand-soldered diode array (29 diodes) eats a lot of
+perfboard.
+
+A one-piece coded absolute encoder (no diodes) is planned for v2 — see
+[05_electronics_circuit_v2.md](05_electronics_circuit_v2.md).
 
 ### Common hard requirements
 
@@ -38,61 +38,13 @@ Whichever route, every selector must be:
 
 - **PCB / perfboard mountable on a 2.54 mm grid.** This is the pivotal constraint. If
   a part's pins land on 0.1″ pitch it drops straight into **perfboard** — no custom
-  PCB needed. A custom PCB is only forced when a part is *off*-grid. So an on-grid
-  coded encoder is doubly attractive: it removes the diode array (the main thing
-  bloating the perfboard) *and* stays perfboard-compatible, resolving the overall
-  size constraint without a fab order.
+  PCB needed. A custom PCB is only forced when a part is *off*-grid.
 - **Real knob shaft** — a 6 mm (¼″) round or D/flatted shaft that accepts a
   **3D-printed knob**. This rules out screwdriver-slot "trimmer"-style coded
-  switches (see §8, S-8000).
+  switches (see [v2 doc §3](05_electronics_circuit_v2.md#3-other-coded-encoders--switches-evaluated), S-8000).
 - **Hand-turned detent feel** and adequate rotational life for daily use.
 
-### 1.1 v2 candidate — Bourns PAC18R absolute encoder
-
-**`PAC18R1-41D19F`** ([datasheet](../datasheets/pac18r.pdf)) — a Bourns *Pro Audio*
-18 mm absolute encoder that meets every requirement above in one part:
-
-| Spec | Value |
-|---|---|
-| Output | **4-bit Gray code**, absolute (one code per detent, held continuously) |
-| Positions | **8** (also 12 / 16 variants; no 5/6-pos — see Mode note) |
-| Mounting | 5 PC pins, **2.5 mm pitch, through-hole** → drops into perfboard |
-| Shaft | 6.34 mm insulated **flatted** shaft, 19.5 mm; 3/8-32 threaded bushing + nut/washer for a 3D-printed knob |
-| Feel | "High-class rotational feel," haptic detents; detent torque 350–650 gf·cm |
-| Body | 18 mm square, low profile |
-| Life | 30 000 cycles min |
-| Wiring | 4 code lines + GND — **no diodes, no pull-down rail** |
-
-Part-number decode: `PAC18R1` · `-4` PC-pins-down/threaded bushing · `1` 8 positions ·
-`D` detents · `19` 19.5 mm shaft · `F` insulated flatted shaft.
-
-**Why this is a strictly better fit than the diode matrix:**
-
-- **Gray code, verified single-bit steps.** The datasheet 8-position table steps
-  `0000 → 0100 → 1100 → …`, exactly one bit per detent. A mid-turn read is therefore
-  always an adjacent *valid* position, never a spurious third code — so the whole §3
-  "strobe line vs debounce" fork and the §1 shorting/non-shorting analysis below
-  **do not apply** to this part. It self-encodes cleanly; there is no wiper-through-diodes
-  topology to float to `000`.
-- **Perfboard-friendly at 2.5 mm pitch**, so v2 stays on perfboard while *shrinking*
-  it (no diode array).
-- **Cost:** +1 GPIO per switch — 4 code lines vs. 3 for natural binary, so the pin
-  budget (§2) rises from 9 to 12 rotary lines (14 → 17 of 23 used). Good trade for
-  deleting 29 diodes and the transient logic.
-
-> **Mode needs 5 positions; PAC18R comes in 8 / 12 / 16 only.** Use the **8-position**
-> part for Mode too and leave 3 detents unused (firmware ignores codes 5–7, exactly as
-> the RS1010 does today) — giving a uniform 3× `PAC18R1-41D19F` BOM — or keep Mode on
-> the RS1010 + diodes. Prefer the uniform BOM for price breaks and panel symmetry.
-
-> **Open — confirm before ordering:** live Mouser unit price (Pro Audio parts often
-> €6–12; the project target is ≤ €5/unit — if it overshoots, the v1 diode matrix stays
-> the cost-optimal choice) and that the 30 000-cycle life is adequate for daily use.
-
 ---
-
-The remainder of this section (§1 diode-scheme details, §3) documents the **v1**
-plain-switch + diode route. It still applies if v2 does not clear the cost target.
 
 ### Shorting vs. non-shorting contacts
 
@@ -132,13 +84,14 @@ Gray code only helps two of the three transient sources:
   filtering (§6) rejects it.
 
 > **Note (v1 diode route only).** This contact-style analysis applies to the bare
-> Alpha/RS1010 switches. It is **moot for the v2 PAC18R** (§1.1), whose Gray-coded
-> output has no wiper-to-diode topology to float. For the v1 route: confirm the part's
-> contact style **before ordering**. For a **shorting** switch, Gray code (§3) removes
-> the transient and lets the settle loop shrink to a one-shot read. For a
-> **non-shorting** switch (the v1 assumption), the float-to-`000` transient survives any
-> encoding, so the real fork is *strobe line vs debounce timing* — see the A/C options
-> in §3.
+> Alpha/RS1010 switches. It is **moot for the planned v2 PAC18R encoder**
+> ([05_electronics_circuit_v2.md §2](05_electronics_circuit_v2.md#2-chosen-candidate--bourns-pac18r-absolute-encoder)),
+> whose Gray-coded output has no wiper-to-diode topology to float. For the v1 route:
+> confirm the part's contact style **before ordering**. For a **shorting** switch, Gray
+> code (§3) removes the transient and lets the settle loop shrink to a one-shot read.
+> For a **non-shorting** switch (the v1 assumption), the float-to-`000` transient
+> survives any encoding, so the real fork is *strobe line vs debounce timing* — see the
+> A/C options in §3.
 
 ### v1 parts — bare 1-pole switches (AliExpress)
 
@@ -195,39 +148,17 @@ overkill for this application.
 
 **8404-3C (on hand)** — 3P4T. Only 4 positions; one short for Mode (5 needed).
 
-### Coded encoders / switches evaluated (v2 route)
-
-**Bourns PAC18R** — the chosen v2 candidate; full spec in §1.1.
-
-**Grayhill Series 25B** — 1/4″ shaft, 2.54 mm PC pins, Gray/binary output, 8-pos via
-45° throw, shorting contacts, 50 000-cycle life — a genuine UI-grade coded switch and
-mechanically ideal, but mil-spec priced (~€15–40/unit), well over the €5 target.
-
-**Elma coded switches** — HEX/Gray/BCD, tactile, up to 16 positions. Same premium
-class as Grayhill; possibly better EU availability. Not priced.
-
-**Same Sky S-8000** — 3-bit BCO absolute coded switch, 2.54 mm DIP, cheap (~€3–6). But
-screwdriver-slot / φ3.6 shaft, 36 mN·m adjustment torque and only 10 000-cycle life: a
-set-and-forget address selector, **not** a hand-turned control. It is BCO not Gray, so
-it does not even buy the transient-free benefit. See [datasheet](../datasheets/s-8000.pdf).
-
-*Excluded category — incremental/quadrature encoders* (Bourns PEC11, ALPS EC11, ~€1–3):
-cheap and nice-feeling, but they output *increments*, not absolute position, and hold
-no state through power-down. That breaks "knob position is the state," so they are out
-regardless of price.
+A coded absolute encoder (Bourns PAC18R and alternatives) is evaluated for v2 — see
+[05_electronics_circuit_v2.md §3](05_electronics_circuit_v2.md#3-other-coded-encoders--switches-evaluated).
 
 ### Open questions
 
-**v2 (PAC18R) route:**
-- [ ] Confirm live Mouser unit price for `PAC18R1-41D19F` vs. the ≤ €5/unit target.
-- [ ] Decide Mode: 8-position PAC18R with 3 detents unused (uniform BOM) vs. RS1010 + diodes.
-- [ ] Confirm three 18 mm bodies + Send button fit the 80×100 mm panel face.
-- [ ] Confirm 30 000-cycle life is adequate for expected daily use.
-
-**v1 (diode matrix) route — if v2 overshoots budget:**
 - [ ] Confirm SR16 1P8T stock and price on Tayda / Mouser.
 - [ ] Confirm three knobs (two SR16 + one RS1010) fit the 80×100 mm panel face with the Send button (and optional swing toggle).
 - [ ] Confirm 6 mm D-shaft on both SR16 and RS1010 accepts the same knob cap.
+
+For the v2 route's open questions (PAC18R pricing, Mode-position fit, panel layout),
+see [05_electronics_circuit_v2.md §4](05_electronics_circuit_v2.md#4-open-questions).
 
 ---
 
@@ -406,10 +337,8 @@ by the raw GPIO reading, so any diode shift / reversed rotation / pin swap is
 absorbed into the row order — a knob wired "wrong" is fixed by editing one table,
 not by re-soldering.
 
-> **v2 decision — fix wiring in software.** Keep this. Indexing each knob table by
-> raw code is the low-risk way to reconcile whatever the PCB ends up routing, with
-> no physical wiring convention to chase. The firmware already works this way; v2
-> carries it forward.
+> This convention carries forward into v2 unchanged — see
+> [05_electronics_circuit_v2.md §2](05_electronics_circuit_v2.md#2-chosen-candidate--bourns-pac18r-absolute-encoder).
 
 ### Wiring diagram
 
@@ -576,14 +505,15 @@ more complex than the chosen scheme.
 
 **C — off-the-shelf coded rotary switch / absolute encoder.** Position output directly
 as a binary or Gray code, built into the switch — no diode matrix. This family splits in
-two (see §1 "Coded encoders evaluated"):
+two (see [05_electronics_circuit_v2.md §3](05_electronics_circuit_v2.md#3-other-coded-encoders--switches-evaluated)):
 
 - *Trimmer-class coded switches* (Same Sky S-8000, and similar 2.54 mm DIP address
   selectors): cheap but screwdriver-slot shafts, high adjustment torque, low life —
   wrong for a hand-turned interface. This is what the original v1 note rejected.
 - *UI-grade absolute encoders* (**Bourns PAC18R**, Grayhill 25B, Elma): proper knob
-  shaft, haptic detents, Gray-coded output. These *are* a good fit — the v2 route (§1.1)
+  shaft, haptic detents, Gray-coded output. These *are* a good fit — the planned v2
+  route ([05_electronics_circuit_v2.md §2](05_electronics_circuit_v2.md#2-chosen-candidate--bourns-pac18r-absolute-encoder))
   adopts the PAC18R, which additionally makes the whole §1/§3 transient problem moot.
 
-The v1 diode scheme is essentially option C built on a cheap 1-pole switch; the v2 route
-is option C done properly with a single UI-grade encoder.
+The v1 diode scheme is essentially option C built on a cheap 1-pole switch; the planned
+v2 route is option C done properly with a single UI-grade encoder.
