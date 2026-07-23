@@ -40,9 +40,27 @@ non-shorting switch guarantees. If a shorting variant is substituted, wake still
 works (OR'd codes still change ≥1 line on a move) but the extra float edges
 disappear.
 
+**Gray code does *not* fix the non-shorting case.** It is tempting to think a
+Gray-coded switch removes the transient regardless of contact style — it does not.
+Gray code only helps two of the three transient sources:
+
+- **Contact skew** (bits switching at slightly different instants): fixed — a
+  single-step Gray move flips only one line, so there is no skew to observe.
+- **Shorting bridge** (make-before-make): fixed — the intermediate read is the
+  bitwise-OR of two adjacent Gray codes, which for a single-bit-apart pair is just
+  one of the two valid neighbours, never a spurious third value.
+- **Non-shorting float** (break-before-make): **not fixed.** When the wiper leaves
+  contact, *all* code lines fall to the pull-down level → `000`, no matter how the
+  detents are encoded. The all-open gap is a mechanical event, not an encoding
+  artifact. Worse, `000` is a *valid position code* (Off — see §3 Fan table), so
+  every non-shorting transition momentarily reads "Off." Only time-stability
+  filtering (§6) rejects it.
+
 > **v2 decision.** Confirm the part's contact style **before ordering** for the PCB
-> build. This transient-code problem is the one that **Gray-code encoding removes**
-> regardless of contact style (see §3), so the two decisions are linked.
+> build. For a **shorting** switch, Gray code (§3) removes the transient and lets the
+> settle loop shrink to a one-shot read. For a **non-shorting** switch (the v1
+> assumption), the float-to-`000` transient survives any encoding, so the real fork
+> is *strobe line vs debounce timing* — see the A/C options in §3.
 
 ### Fan speed — Alpha SR16 1P8T
 
@@ -190,16 +208,39 @@ the same instant (contact skew, or the momentary all-open float of a non-shortin
 switch — see §1), the decoder can briefly read a bogus in-between code (7, 5, 1…).
 That transient is exactly what the §6 debounce settle-loop filters out.
 
-> **v2 decision — Gray code vs. debounce.** **Gray code** (reflected binary) is the
-> encoding where **consecutive positions differ by exactly one bit**. With a
-> Gray-coded switch, any single-step move flips only one line, so a mid-transition
-> read is always either the old position or the new one — never a spurious third
-> value. That would **remove the need for the multi-read settle window entirely** (a
-> one-shot read plus a short bounce hold-off would suffice), at the cost of a
-> firmware Gray→binary decode step (`binary = gray ^ (gray >> 1) ^ (gray >> 2)` for a
-> 3-bit code) and a different diode pattern per position. Decide this alongside the
-> PCB layout; if contact skew or non-shorting float proves troublesome on the
-> assembled board, re-wiring the diodes to a Gray sequence is the hardware fix.
+> **v2 decision — how to reject the mid-turn transient.** **Gray code** (reflected
+> binary) makes **consecutive positions differ by exactly one bit**, so on a
+> *shorting* switch a mid-transition read is always the old or new position — never a
+> spurious third value — and the multi-read settle window (§6) could shrink to a
+> one-shot read plus a short hold-off (firmware Gray→binary decode:
+> `binary = gray ^ (gray >> 1) ^ (gray >> 2)` for 3 bits). **But Gray code does
+> nothing for a non-shorting switch** (§1): the wiper's all-open gap floats every code
+> line to `000` regardless of encoding, and `000` is the valid Off code. Because the
+> SR16 knobs use **all 8 codewords** (8 positions on 3 bits), there is **no spare
+> pattern left to reserve for "float / invalid."** So the real fork is:
+>
+> - **Option A — add a per-switch "valid" strobe line.** A 4th code line driven HIGH
+>   at *every* detent (one diode from all N contacts to it). Read `0xxx` → wiper is
+>   between detents → ignore; `1xxx` → on a detent, low 3 bits are the position (Off =
+>   `1000`). Detects float *instantaneously and encoding-independently* — the strobe
+>   goes low exactly when all position lines float. Lets the settle loop drop to a
+>   one-shot even on a non-shorting switch. **Cost:** +1 GPIO per switch (+3 → 17/23
+>   used), +1 diode per position (one from every contact to the strobe rail:
+>   Fan +8, Mode +5, Temp +8 = **+21 diodes**, 29 → 50), +3 PCINT lines to arm.
+> - **Option C — keep 3 bits, reject float by timing (status quo).** The float→`000`
+>   is transient, so the §6 settle loop rejects it: `000` only survives the 10 ms
+>   window if the knob is genuinely parked at Off. **Cost:** none in hardware, already
+>   validated; but permanently tied to the multi-read settle window, and trusts that
+>   no mechanical position dwells in float long enough to read as stable.
+>
+> (Reserving `000` as invalid and shifting positions up — "Option B" — is a dead end
+> for the SR16 knobs: 8 positions need all 8 codewords, leaving none spare. It only
+> fits ≤7-position knobs like Mode.)
+>
+> Recommendation: keep **C** for the perfboard prototype (validated, zero cost); adopt
+> **A** on the PCB only if bench testing shows float dwell is marginal at 10 ms or you
+> want to drop the settle loop. Gray code is worth wiring only if the ordered part
+> turns out to be *shorting*. Decide alongside the §1 contact-style confirmation.
 
 ### Fan speed — SR16 1P8T (8 positions, 3 bits)
 

@@ -20,5 +20,7 @@ feasibility question; it's all **integration, sourcing, and finish**.
 
 - PCB with directly-mounted switches — learn KiCad. → [05](05_electronics_circuit.md)
 - IR LED: single wide-angle LED instead of the 3× fan. → [06](06_IR_LED_wiring.md)
-- Gray code vs. debounce for the readout encoding. → [05 §3](05_electronics_circuit.md)
+- Readout transient rejection: confirm switch contact style, then choose strobe/valid
+  line (A) vs debounce timing (C). Gray code helps only the shorting case; 8 positions
+  on 3 bits leaves no spare "invalid" codeword. → [05 §1, §3](05_electronics_circuit.md)
 - Wall-mountable enclosure.
