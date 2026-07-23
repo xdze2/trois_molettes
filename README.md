@@ -65,6 +65,7 @@ Lessons learned:
 | [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: recommended 2×AAA direct-drive (no regulator), Li-Po + TP4056 fallback, sleep-current budget, Pro Mini battery mods |
 | [10_software_architecture.md](docs/10_software_architecture.md)         | How the knob-remote sketch is structured: switch reading, state mapping, Daikin frame builder, IR transmit, Linux mock |
 | [11_serial_remote_app.md](docs/11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
+| [roadmap.md](docs/roadmap.md)                                           | Roadmap: what v1 leaves open and the planned v1.2 (power) and v2 (PCB + enclosure) milestones                     |
 
 ## Firmware
 
