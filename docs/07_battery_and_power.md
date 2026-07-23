@@ -81,7 +81,72 @@ See [06_IR_LED_wiring.md §Bulk Capacitor](06_IR_LED_wiring.md) for sizing detai
 
 ---
 
-## 6. Charging
+## 6. Alkaline (AAA / AA) as an alternative to Li-Po
+
+The Li-Po + TP4056 stack is convenient (USB-C recharge, integrated protection) but
+adds a charge IC, a soft-pouch cell that's awkward to mount, and a chemistry that's
+overkill for a device drawing ~100 µA. Because sleep dominates and years-long life
+is plausible even at sub-mA, **primary alkaline cells are worth considering** — a
+user swaps them once a year or two rather than plugging in a cable.
+
+### Capacity vs. Li-Po
+
+| Cell | Nominal V | Usable capacity | Notes |
+|---|---|---|---|
+| AAA alkaline | 1.5 V (1.6 → 0.9 V) | ~1000–1200 mAh | Small; 2–3 fit a slim enclosure |
+| AA alkaline | 1.5 V (1.6 → 0.9 V) | ~2000–2800 mAh | 2–3× the AAA energy, but Ø14.5 × 50 mm |
+| 9 V (6LR61) | 9 V (9 → 6 V) | ~550 mAh | Single cell + snap, but low mAh and wastes V in regulation |
+| Li-Po (§2) | 3.7 V (4.2 → 3.0 V) | 400–1000 mAh | Rechargeable; needs TP4056 |
+
+Even AAA alkaline holds **more usable energy than a small Li-Po**: at 100 µA total
+sleep current, a single AAA (~1100 mAh) already lasts ~1.2 years, and AA pushes past
+2–3 years. Both easily meet the 6-month target with margin.
+
+### Voltage: the real design question
+
+The MCU rail is 3.3 V. Alkaline cells give 1.5 V each, sagging toward 0.9 V as they
+deplete, which changes how they must feed the board:
+
+- **1 × AAA/AA (0.9–1.6 V):** requires a **boost converter** up to 3.3 V. Adds a
+  part and its quiescent draw (pick a low-Iq boost, e.g. TPS61200-class ~µA range),
+  but gives the fewest cells and simplest holder.
+- **2 × AAA/AA (1.8–3.2 V):** feeds the ATmega328P **directly, no regulator** — the
+  328P runs 1.8–5.5 V and stays valid across the whole discharge curve. This is the
+  most efficient option: no LDO/boost quiescent loss at all, dropping the sleep floor
+  to essentially the MCU + pull-down leakage (~4 µA). The catch: the IR-LED forward
+  drop and the diode-encoded readout thresholds must both be checked at the low end
+  (~1.8 V) — see [06_IR_LED_wiring.md](06_IR_LED_wiring.md) and
+  [05_electronics_circuit.md](05_electronics_circuit.md).
+- **3 × AAA/AA (2.7–4.8 V):** back to needing a **3.3 V regulator** (buck or LDO with
+  low dropout), spending quiescent current again — no advantage over 2-cell unless the
+  extra headroom is needed for the IR forward voltage.
+- **9 V (6LR61):** possible but the weakest option. It needs a **step-down regulator**
+  (buck; an LDO would burn ~3.3/9 ≈ 63% of the energy as heat), and a 9 V alkaline
+  only holds ~550 mAh — so even at buck efficiency its effective 3.3 V energy is on the
+  order of a *single AAA*, in a far bulkier cell. Its only merit is the single-cell
+  snap connector. Not recommended unless a 9 V snap is desirable for some other reason.
+
+**Recommended:** 2 × AAA driving the 328P directly (bypassing the Pro Mini LDO
+entirely — see §4 on not using RAW). This removes the dominant ~75 µA LDO term and
+the TP4056, at the cost of a battery holder and losing USB-C recharge. It only works
+if the IR driver and readout are validated down to ~1.8 V; if the IR stage needs more
+headroom, prefer 3 × AAA + a low-dropout 3.3 V regulator, or keep the boost/Li-Po path.
+
+### Trade-offs
+
+- **For:** no charge circuit, no soft-pouch mounting problem, higher usable energy,
+  and the 2-cell path removes regulator quiescent entirely.
+- **Against:** no recharge (swap cells), a battery holder eats enclosure volume
+  (AA especially — the 50 mm length fights the slim-panel goal, so **AAA is preferred**),
+  and alkaline self-discharge / leakage over multi-year storage is a real risk (lithium
+  primary AAA — Energizer L92 — avoids leakage and adds capacity if that matters).
+
+This stays open until bench sleep-current is measured (§3): the LDO-vs-direct-drive
+decision only pays off once we know the real floor.
+
+---
+
+## 7. Charging
 
 The **TP4056 module** (widely available, ~€0.50) includes:
 - Constant-current / constant-voltage Li-Po charging (default 1 A, adjustable via RPROG).

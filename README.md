@@ -63,7 +63,7 @@ Lessons learned:
 | [03_microcontroller_choice.md](docs/03_microcontroller_choice.md)       | MCU comparison (nRF52840 / STM32L4 / ATmega328P) on sleep current + multi-pin wake; ATmega328P chosen, rationale |
 | [05_electronics_circuit.md](docs/05_electronics_circuit.md)             | Rotary switch selection; input wiring: diode-encoded readout, multi-GPIO PCINT wake, pin map, sleep/wake sequence |
 | [06_IR_LED_wiring.md](docs/06_IR_LED_wiring.md)                         | IR emitter: TSAL6200 + S9013 driver, single/3× wiring, bulk cap, wide-angle vs range, mounting strategies        |
-| [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: Li-Po + TP4056, sleep-current budget, Pro Mini battery mods, charging                        |
+| [07_battery_and_power.md](docs/07_battery_and_power.md)                 | Power architecture: Li-Po + TP4056, sleep-current budget, Pro Mini battery mods, charging, AAA/alkaline alternative |
 | [10_software_architecture.md](docs/10_software_architecture.md)         | Firmware layers: portable Daikin frame builder, AVR HAL (Timer2/sleep), Linux mock                               |
 | [11_serial_remote_app.md](docs/11_serial_remote_app.md)                 | Python Textual TUI soft front-panel over serial → ATmega → IR: protocol spec, app architecture (planned)         |
 
